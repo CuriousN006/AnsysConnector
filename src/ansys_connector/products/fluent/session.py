@@ -98,6 +98,20 @@ class FluentSession(AdapterSession):
                 return self._run_command({"path": "solution.initialization.hybrid_initialize", **params})
             case "iterate":
                 return self._run_command({"path": "solution.run_calculation.iterate", **params})
+            case "initialize_solution":
+                return self._initialize_solution(params)
+            case "run_iterations":
+                return self._run_iterations(params)
+            case "run_time_steps":
+                return self._run_time_steps(params)
+            case "collect_reports":
+                return self._collect_reports(params)
+            case "export_results":
+                return self._export_results(params)
+            case "checkpoint_case_data":
+                return self._run_command({"path": "file.write_case_data", **params})
+            case "get_solver_health":
+                return self._get_solver_health()
             case _:
                 raise AdapterError(f"Unsupported Fluent action: {action}")
 
@@ -237,3 +251,100 @@ class FluentSession(AdapterSession):
             silent=bool(params.get("silent", True)),
         )
         return {"commands": list(commands), "result": result}
+
+    def _initialize_solution(self, params: dict[str, Any]) -> Any:
+        method = str(params.get("method", "hybrid"))
+        path = (
+            "solution.initialization.hybrid_initialize"
+            if method == "hybrid"
+            else "solution.initialization.standard_initialize"
+        )
+        result = self._run_command({"path": path})
+        return {"method": method, "result": result["result"]}
+
+    def _run_iterations(self, params: dict[str, Any]) -> Any:
+        count = int(params["count"])
+        result = self._run_command({"path": "solution.run_calculation.iterate", "kwargs": {"iter_count": count}})
+        return {"count": count, "result": result["result"]}
+
+    def _run_time_steps(self, params: dict[str, Any]) -> Any:
+        step_count = int(params["step_count"])
+        max_iterations_per_step = int(params["max_iterations_per_step"])
+        if "time_step_size" in params:
+            time_step_value = params["time_step_size"]
+            self._resolve_path("solution.run_calculation.transient_controls.specified_time_step").set_state(time_step_value)
+        result = self._run_command(
+            {
+                "path": "solution.run_calculation.dual_time_iterate",
+                "kwargs": {
+                    "time_step_count": step_count,
+                    "max_iter_per_step": max_iterations_per_step,
+                },
+            }
+        )
+        return {
+            "step_count": step_count,
+            "max_iterations_per_step": max_iterations_per_step,
+            "time_step_size": params.get("time_step_size"),
+            "result": result["result"],
+        }
+
+    def _collect_reports(self, params: dict[str, Any]) -> Any:
+        reports: dict[str, Any] = {}
+        for report in params["reports"]:
+            result = self._run_command(
+                {
+                    "path": report["command_path"],
+                    "args": report.get("args", []),
+                    "kwargs": report.get("kwargs", {}),
+                }
+            )
+            reports[report["name"]] = {
+                "command_path": report["command_path"],
+                "result": result["result"],
+            }
+        return {"reports": reports}
+
+    def _export_results(self, params: dict[str, Any]) -> Any:
+        picture = self._resolve_path("results.graphics.picture")
+        contour_root = self._resolve_path("results.graphics.contour")
+        exports: list[dict[str, Any]] = []
+        for image in params["images"]:
+            contour_spec = image.get("contour")
+            if contour_spec:
+                try:
+                    contour_root.create(name=contour_spec["object_name"])
+                except Exception:
+                    pass
+                contour_object = self._resolve_path(f'results.graphics.contour["{contour_spec["object_name"]}"]')
+                if contour_spec.get("state"):
+                    contour_object.set_state(contour_spec["state"])
+                contour_root.display(object_name=contour_spec["object_name"])
+
+            if image.get("picture_state"):
+                picture.set_state(image["picture_state"])
+            picture.save_picture(file_name=image["file_name"])
+            exports.append(
+                {
+                    "name": image["name"],
+                    "kind": image["kind"],
+                    "file_name": image["file_name"],
+                    "contour": contour_spec,
+                }
+            )
+        return {"exports": exports}
+
+    def _get_solver_health(self) -> Any:
+        transient_controls = self._resolve_path("solution.run_calculation.transient_controls")
+        time_step_count = self._resolve_path("solution.run_calculation.time_step_count")
+        health = {
+            "version": self._session.get_fluent_version(),
+            "time_step_count": time_step_count.get_state() if hasattr(time_step_count, "get_state") else None,
+            "transient_controls": transient_controls.get_state() if hasattr(transient_controls, "get_state") else None,
+        }
+        try:
+            summary = self._run_command({"path": "results.report.summary"})
+            health["summary"] = summary["result"]
+        except Exception:
+            health["summary"] = None
+        return health

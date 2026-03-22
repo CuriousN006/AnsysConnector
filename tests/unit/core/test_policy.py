@@ -117,6 +117,63 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "Unsupported parameters"):
             session.execute("command", {"path": "file.start_transcript", "file_name": "outputs/test.trn"})
 
+    def test_initialize_solution_rejects_unknown_method(self) -> None:
+        raw = RecordingSession()
+        session = PolicyEnforcedSession(
+            adapter=FluentAdapter(),
+            session=raw,
+            env=build_env(),
+            profile="safe",
+            allowed_roots=(Path.cwd().resolve(strict=False),),
+        )
+
+        with self.assertRaisesRegex(Exception, "hybrid'.*standard"):
+            session.execute("initialize_solution", {"method": "custom"})
+
+    def test_run_time_steps_requires_positive_parameters(self) -> None:
+        raw = RecordingSession()
+        session = PolicyEnforcedSession(
+            adapter=FluentAdapter(),
+            session=raw,
+            env=build_env(),
+            profile="safe",
+            allowed_roots=(Path.cwd().resolve(strict=False),),
+        )
+
+        with self.assertRaisesRegex(Exception, "positive integer"):
+            session.execute("run_time_steps", {"step_count": 0, "max_iterations_per_step": 10})
+
+        with self.assertRaisesRegex(Exception, "positive number"):
+            session.execute("run_time_steps", {"step_count": 1, "max_iterations_per_step": 10, "time_step_size": 0})
+
+    def test_export_results_rejects_nested_paths_outside_allowed_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as workspace_dir, tempfile.TemporaryDirectory() as outside_dir:
+            workspace = Path(workspace_dir)
+            outside = Path(outside_dir) / "image.png"
+            raw = RecordingSession()
+            session = PolicyEnforcedSession(
+                adapter=FluentAdapter(),
+                session=raw,
+                env=build_env(),
+                profile="safe",
+                allowed_roots=(workspace.resolve(strict=False),),
+                cwd=workspace,
+            )
+
+            with self.assertRaisesRegex(Exception, "outside the allowed roots"):
+                session.execute(
+                    "export_results",
+                    {
+                        "images": [
+                            {
+                                "name": "velocity",
+                                "kind": "picture",
+                                "file_name": str(outside),
+                            }
+                        ]
+                    },
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

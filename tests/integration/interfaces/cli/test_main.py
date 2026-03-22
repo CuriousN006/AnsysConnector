@@ -46,6 +46,52 @@ class CliMainTests(unittest.TestCase):
         self.assertIs(parsed["flag"], True)
         self.assertEqual(parsed["tags"], [1, 2])
 
+    def test_list_workflows_does_not_require_env_detection(self) -> None:
+        service = mock.Mock()
+        service.list_workflows.return_value = [{"name": "fluent.steady_run"}]
+
+        with mock.patch("ansys_connector.interfaces.cli.main.WorkflowService", return_value=service):
+            with mock.patch("ansys_connector.interfaces.cli.main.detect_environment", side_effect=AssertionError("env")):
+                with mock.patch("ansys_connector.interfaces.cli.main.build_registry", side_effect=AssertionError("registry")):
+                    exit_code, output = self._run_main(["list-workflows", "fluent", "--json"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("fluent.steady_run", output)
+        service.list_workflows.assert_called_once_with("fluent")
+
+    def test_start_workflow_wait_uses_service_and_subcommand_version(self) -> None:
+        service = mock.Mock()
+        service.start_workflow.return_value = {"run_id": "run-123", "status": "queued"}
+        service.wait_for_run.return_value = {"run_id": "run-123", "status": "succeeded"}
+
+        with mock.patch("ansys_connector.interfaces.cli.main.WorkflowService", return_value=service):
+            with mock.patch("ansys_connector.interfaces.cli.main.detect_environment", side_effect=AssertionError("env")):
+                with mock.patch("ansys_connector.interfaces.cli.main.build_registry", side_effect=AssertionError("registry")):
+                    exit_code, output = self._run_main(
+                        [
+                            "start-workflow",
+                            "fluent.steady_run",
+                            "--spec",
+                            "spec.yaml",
+                            "--version",
+                            "252",
+                            "--workspace",
+                            "runs/fluent-v1",
+                            "--wait",
+                            "--json",
+                        ]
+                    )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn('"status": "succeeded"', output)
+        service.start_workflow.assert_called_once_with(
+            "fluent.steady_run",
+            "spec.yaml",
+            version="252",
+            workspace="runs/fluent-v1",
+        )
+        service.wait_for_run.assert_called_once_with("run-123")
+
 
 if __name__ == "__main__":
     unittest.main()

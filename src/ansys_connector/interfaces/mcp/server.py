@@ -10,16 +10,20 @@ from ansys_connector.core import AdapterRegistry, EnvironmentInfo, build_registr
 from ansys_connector.core.execution import SessionStore, WorkflowExecutor
 from ansys_connector.core.policy import normalize_profile
 from ansys_connector.workflows.plans import load_plan
+from ansys_connector.workflows.templates import WorkflowService
 
 
 _STORE: SessionStore | None = None
 _STORE_LOCK = threading.Lock()
+_WORKFLOW_SERVICE: WorkflowService | None = None
+_WORKFLOW_SERVICE_LOCK = threading.Lock()
 
 mcp = FastMCP(
     "AnsysConnector",
     instructions=(
         "Use this server to inspect the local Ansys installation, discover safe and expert adapter actions, "
-        "open managed product sessions, inspect session health, execute adapter actions, and run declarative plans. "
+        "open managed product sessions, inspect session health, execute adapter actions, run declarative plans, "
+        "and manage high-level Fluent workflow runs. "
         "Safe sessions only permit typed actions. Expert sessions are required for raw script, Scheme, or TUI, "
         "and raw expert surfaces also require options.allow_raw_actions=true."
     ),
@@ -40,6 +44,15 @@ def get_store() -> SessionStore:
                 _STORE = SessionStore()
                 atexit.register(_STORE.close_all)
     return _STORE
+
+
+def get_workflow_service() -> WorkflowService:
+    global _WORKFLOW_SERVICE
+    if _WORKFLOW_SERVICE is None:
+        with _WORKFLOW_SERVICE_LOCK:
+            if _WORKFLOW_SERVICE is None:
+                _WORKFLOW_SERVICE = WorkflowService()
+    return _WORKFLOW_SERVICE
 
 
 @mcp.tool(description="Detect the local Python and Ansys environment.")
@@ -144,6 +157,41 @@ def run_plan(
     _, _, executor = _build_executor(version)
     summary = executor.run_plan(load_plan(path))
     return summary.to_dict()
+
+
+@mcp.tool(description="List high-level workflow templates, optionally filtered by product.")
+def list_workflows(product: str | None = None) -> list[dict[str, Any]]:
+    return get_workflow_service().list_workflows(product)
+
+
+@mcp.tool(description="Describe one high-level workflow template.")
+def describe_workflow(name: str) -> dict[str, Any]:
+    return get_workflow_service().describe_workflow(name)
+
+
+@mcp.tool(description="Start a workflow run and return the new run metadata.")
+def start_workflow(
+    name: str,
+    spec: dict[str, Any] | str,
+    version: str | None = None,
+    workspace: str | None = None,
+) -> dict[str, Any]:
+    return get_workflow_service().start_workflow(name, spec, version=version, workspace=workspace)
+
+
+@mcp.tool(description="List known workflow runs.")
+def list_workflow_runs() -> list[dict[str, Any]]:
+    return get_workflow_service().list_runs()
+
+
+@mcp.tool(description="Inspect one workflow run, including recent events.")
+def get_workflow_run(run_id: str) -> dict[str, Any]:
+    return get_workflow_service().get_run(run_id)
+
+
+@mcp.tool(description="Request cooperative cancellation for one workflow run.")
+def cancel_workflow_run(run_id: str) -> dict[str, Any]:
+    return get_workflow_service().cancel_run(run_id)
 
 
 def main() -> None:

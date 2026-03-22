@@ -1,0 +1,70 @@
+source:
+  kind: case
+  path: inputs/reflow-base.cas.h5
+
+physics:
+  energy:
+    - path: setup.models.energy
+      state:
+        enabled: true
+  multiphase:
+    - path: setup.models.multiphase
+      state:
+        model: vof
+  phases:
+    - path: setup.models.multiphase.vof
+      state:
+        number_of_phases: 2
+  surface_tension:
+    - path: setup.models.multiphase.vof.surface_tension
+      state:
+        enabled: true
+  wall_adhesion:
+    - path: setup.models.multiphase.vof.wall_adhesion
+      state:
+        enabled: true
+  melting:
+    - path: setup.models.solidification_melting
+      state:
+        enabled: true
+
+zones:
+  operating_conditions:
+    - path: setup.operating_conditions
+      state:
+        operating_pressure: 101325.0
+  gravity:
+    - path: setup.general.solver.time
+      state:
+        gravity:
+          x: 0.0
+          y: -9.81
+          z: 0.0
+  boundary_conditions:
+    - path: setup.boundary_conditions.wall["board"]
+      state:
+        thermal_bc: coupled
+
+solve:
+  initialization: hybrid
+  time_step_size: 0.001
+  step_count: 20
+  max_iterations_per_step: 30
+  time_step_chunk_size: 1
+
+outputs:
+  transcript:
+    file_name: reflow-transcript.log
+  checkpoints:
+    enabled: true
+    every_chunks: 5
+    file_name_template: checkpoints/reflow-step-{completed_steps:04d}.cas.h5
+  final_case_data:
+    file_name: reflow-final.cas.h5
+  reports:
+    - name: summary
+      command_path: results.report.summary
+  images:
+    - name: melt-front
+      kind: picture
+      file_name: melt-front.png

@@ -12,6 +12,7 @@ import yaml
 from ansys_connector.core import build_registry, detect_environment
 from ansys_connector.core.execution import WorkflowExecutor
 from ansys_connector.workflows.plans import load_plan
+from ansys_connector.workflows.templates import WorkflowService
 
 
 _INTEGER_PATTERN = re.compile(r"^-?\d+$")
@@ -99,6 +100,30 @@ def _build_parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("path", help="Path to the plan file")
     plan_parser.add_argument("--json", action="store_true", help="Emit JSON")
 
+    list_workflows_parser = subparsers.add_parser("list-workflows", help="List high-level workflow templates")
+    list_workflows_parser.add_argument("product", nargs="?", help="Optional product filter, such as fluent")
+    list_workflows_parser.add_argument("--json", action="store_true", help="Emit JSON")
+
+    describe_workflow_parser = subparsers.add_parser("describe-workflow", help="Describe one workflow template")
+    describe_workflow_parser.add_argument("name", help="Workflow name, such as fluent.steady_run")
+    describe_workflow_parser.add_argument("--json", action="store_true", help="Emit JSON")
+
+    start_workflow_parser = subparsers.add_parser("start-workflow", help="Start an asynchronous workflow run")
+    start_workflow_parser.add_argument("name", help="Workflow name, such as fluent.steady_run")
+    start_workflow_parser.add_argument("--spec", required=True, help="Path to the YAML or JSON workflow spec")
+    start_workflow_parser.add_argument("--version", dest="workflow_version", help="Prefer a specific AWP_ROOT version.")
+    start_workflow_parser.add_argument("--workspace", help="Explicit workflow workspace")
+    start_workflow_parser.add_argument("--wait", action="store_true", help="Wait for the workflow to finish")
+    start_workflow_parser.add_argument("--json", action="store_true", help="Emit JSON")
+
+    get_workflow_run_parser = subparsers.add_parser("get-workflow-run", help="Inspect one workflow run")
+    get_workflow_run_parser.add_argument("run_id", help="Workflow run identifier")
+    get_workflow_run_parser.add_argument("--json", action="store_true", help="Emit JSON")
+
+    cancel_workflow_run_parser = subparsers.add_parser("cancel-workflow-run", help="Request workflow cancellation")
+    cancel_workflow_run_parser.add_argument("run_id", help="Workflow run identifier")
+    cancel_workflow_run_parser.add_argument("--json", action="store_true", help="Emit JSON")
+
     return parser
 
 
@@ -143,12 +168,37 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        env = detect_environment(args.ansys_version)
-        registry = build_registry()
-        executor = WorkflowExecutor(env, registry)
+        env = None
+        registry = None
+        executor = None
+        workflow_service = None
+
+        def get_env():
+            nonlocal env
+            if env is None:
+                env = detect_environment(args.ansys_version)
+            return env
+
+        def get_registry():
+            nonlocal registry
+            if registry is None:
+                registry = build_registry()
+            return registry
+
+        def get_executor():
+            nonlocal executor
+            if executor is None:
+                executor = WorkflowExecutor(get_env(), get_registry())
+            return executor
+
+        def get_workflow_service() -> WorkflowService:
+            nonlocal workflow_service
+            if workflow_service is None:
+                workflow_service = WorkflowService()
+            return workflow_service
 
         if args.command == "env":
-            payload = env.to_dict()
+            payload = get_env().to_dict()
             if args.json:
                 _print_json(payload)
             else:
@@ -156,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "adapters":
-            statuses = [status.to_dict() for status in registry.statuses(env)]
+            statuses = [status.to_dict() for status in get_registry().statuses(get_env())]
             if args.json:
                 _print_json(statuses)
             else:
@@ -164,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "call":
-            result = executor.call(
+            result = get_executor().call(
                 args.adapter,
                 args.action,
                 params=_parse_key_value(args.param),
@@ -177,9 +227,41 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         if args.command == "run-plan":
-            summary = executor.run_plan(load_plan(args.path))
+            summary = get_executor().run_plan(load_plan(args.path))
             _print_structured(summary.to_dict(), as_json=args.json)
             return 0 if summary.ok else 1
+
+        if args.command == "list-workflows":
+            workflows = get_workflow_service().list_workflows(args.product)
+            _print_structured(workflows, as_json=args.json)
+            return 0
+
+        if args.command == "describe-workflow":
+            workflow = get_workflow_service().describe_workflow(args.name)
+            _print_structured(workflow, as_json=args.json)
+            return 0
+
+        if args.command == "start-workflow":
+            run = get_workflow_service().start_workflow(
+                args.name,
+                args.spec,
+                version=args.workflow_version or args.ansys_version,
+                workspace=args.workspace,
+            )
+            if args.wait:
+                run = get_workflow_service().wait_for_run(run["run_id"])
+            _print_structured(run, as_json=args.json)
+            return 0 if run["status"] == "succeeded" else (1 if args.wait else 0)
+
+        if args.command == "get-workflow-run":
+            run = get_workflow_service().get_run(args.run_id)
+            _print_structured(run, as_json=args.json)
+            return 0
+
+        if args.command == "cancel-workflow-run":
+            run = get_workflow_service().cancel_run(args.run_id)
+            _print_structured(run, as_json=args.json)
+            return 0
 
         parser.error(f"Unhandled command: {args.command}")
         return 2

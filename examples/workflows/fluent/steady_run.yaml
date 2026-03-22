@@ -1,0 +1,42 @@
+source:
+  kind: case
+  path: inputs/steady-demo.cas.h5
+
+setup:
+  models:
+    - path: setup.models.energy
+      state:
+        enabled: true
+  materials:
+    - path: setup.materials.fluid["air"]
+      state:
+        density:
+          option: incompressible-ideal-gas
+  boundary_conditions:
+    - path: setup.boundary_conditions.velocity_inlet["inlet"]
+      state:
+        vmag: 1.5
+    - path: setup.boundary_conditions.pressure_outlet["outlet"]
+      state:
+        gauge_pressure: 0.0
+  reference_values:
+    - path: reference_values.compute_from
+      state: inlet
+
+solve:
+  initialization: hybrid
+  iterations: 200
+  iteration_chunk_size: 50
+
+outputs:
+  transcript:
+    file_name: steady-transcript.log
+  final_case_data:
+    file_name: steady-final.cas.h5
+  reports:
+    - name: summary
+      command_path: results.report.summary
+  images:
+    - name: velocity-overview
+      kind: picture
+      file_name: velocity-overview.png

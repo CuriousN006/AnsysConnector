@@ -3,8 +3,14 @@ from __future__ import annotations
 from ansys_connector.products.base import ActionDefinition, ActionParameter
 
 from .validation import (
+    validate_checkpoint_case_data_params,
     validate_command_params,
+    validate_collect_reports_params,
+    validate_export_results_params,
+    validate_initialize_solution_params,
     validate_iterate_params,
+    validate_run_iterations_params,
+    validate_run_time_steps_params,
     validate_scheme_params,
     validate_tui_params,
 )
@@ -125,6 +131,82 @@ FLUENT_ACTIONS: tuple[ActionDefinition, ...] = (
             ActionParameter("number_of_iterations", kind="integer", description="Alternative iteration count field."),
         ),
         validator=validate_iterate_params,
+    ),
+    ActionDefinition(
+        name="initialize_solution",
+        profile="safe",
+        description="Initialize the Fluent solution with a curated standard or hybrid method.",
+        parameters=(
+            ActionParameter(
+                "method",
+                kind="string",
+                description="Initialization method: hybrid or standard.",
+                choices=("hybrid", "standard"),
+            ),
+        ),
+        validator=validate_initialize_solution_params,
+    ),
+    ActionDefinition(
+        name="run_iterations",
+        profile="safe",
+        description="Run a validated steady-state iteration chunk.",
+        parameters=(
+            ActionParameter("count", kind="integer", required=True, description="Iterations to run in this chunk."),
+        ),
+        validator=validate_run_iterations_params,
+    ),
+    ActionDefinition(
+        name="run_time_steps",
+        profile="safe",
+        description="Run a validated transient time-step chunk.",
+        parameters=(
+            ActionParameter("step_count", kind="integer", required=True, description="Time steps to advance."),
+            ActionParameter(
+                "max_iterations_per_step",
+                kind="integer",
+                required=True,
+                description="Maximum nonlinear iterations per time step.",
+            ),
+            ActionParameter(
+                "time_step_size",
+                kind="number",
+                description="Optional transient time-step size to apply before the chunk.",
+            ),
+        ),
+        validator=validate_run_time_steps_params,
+    ),
+    ActionDefinition(
+        name="collect_reports",
+        profile="safe",
+        description="Run curated Fluent report commands and return a named snapshot.",
+        parameters=(
+            ActionParameter("reports", kind="array", required=True, description="Named report command requests."),
+        ),
+        validator=validate_collect_reports_params,
+    ),
+    ActionDefinition(
+        name="export_results",
+        profile="safe",
+        description="Export pictures and contour snapshots to allowed output paths.",
+        parameters=(
+            ActionParameter("images", kind="array", required=True, description="Image export requests."),
+        ),
+        validator=validate_export_results_params,
+    ),
+    ActionDefinition(
+        name="checkpoint_case_data",
+        profile="safe",
+        description="Write a checkpoint case-data file to an allowed output path.",
+        parameters=(
+            ActionParameter("file_name", kind="path", required=True, is_path=True, description="Checkpoint path."),
+        ),
+        path_fields=("file_name",),
+        validator=validate_checkpoint_case_data_params,
+    ),
+    ActionDefinition(
+        name="get_solver_health",
+        profile="safe",
+        description="Return a curated Fluent solver-health snapshot for workflow progress reporting.",
     ),
     ActionDefinition(
         name="scheme",
