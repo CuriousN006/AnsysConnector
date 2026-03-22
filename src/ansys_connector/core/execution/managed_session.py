@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -90,17 +91,20 @@ class PolicyEnforcedSession(AdapterSession):
             cwd=self._cwd,
         )
         if definition.is_raw and self._audit_raw_actions:
-            append_raw_audit_record(
-                {
-                    "session": self._session_label,
-                    "adapter": self._adapter.name,
-                    "action": action,
-                    "profile": self._profile,
-                    "workspace": str(self._cwd),
-                    "params": validated,
-                },
-                state_dir=self._broker_state_dir,
-            )
+            try:
+                append_raw_audit_record(
+                    {
+                        "session": self._session_label,
+                        "adapter": self._adapter.name,
+                        "action": action,
+                        "profile": self._profile,
+                        "workspace": str(self._cwd),
+                        "params": validated,
+                    },
+                    state_dir=self._broker_state_dir,
+                )
+            except OSError:
+                pass
         return self._session.execute(action, validated)
 
     def close(self) -> None:
@@ -147,6 +151,7 @@ class ManagedSession:
     created_at: datetime
     last_used_at: datetime
     expires_at: datetime
+    owner_pid: int | None = None
     status: str = "open"
     lock: threading.RLock = field(default_factory=threading.RLock, repr=False, compare=False)
 
@@ -179,6 +184,40 @@ class ManagedSession:
             created_at=now,
             last_used_at=now,
             expires_at=now + timedelta(seconds=ttl_seconds),
+            owner_pid=os.getpid(),
+        )
+
+    @classmethod
+    def create_pending(
+        cls,
+        *,
+        session_id: str,
+        adapter: str,
+        version: str | None,
+        profile: str,
+        workspace: Path,
+        options: dict[str, Any],
+        allowed_roots: tuple[Path, ...],
+        env: EnvironmentInfo,
+        ttl_seconds: int,
+        status: str = "opening",
+    ) -> "ManagedSession":
+        now = datetime.now(timezone.utc)
+        return cls(
+            session_id=session_id,
+            adapter=adapter,
+            version=version,
+            profile=profile,
+            workspace=workspace,
+            options=options,
+            allowed_roots=allowed_roots,
+            env=env,
+            session=None,
+            created_at=now,
+            last_used_at=now,
+            expires_at=now + timedelta(seconds=ttl_seconds),
+            owner_pid=os.getpid(),
+            status=status,
         )
 
     def touch(self, ttl_seconds: int) -> None:
@@ -192,7 +231,7 @@ class ManagedSession:
 
     @property
     def can_execute(self) -> bool:
-        return self.session is not None and self.status not in {"closing", "closed", "expired", "orphaned"}
+        return self.session is not None and self.status not in {"closing", "closed", "expired", "orphaned", "degraded"}
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -209,6 +248,7 @@ class ManagedSession:
             "created_at": self.created_at.isoformat(),
             "last_used_at": self.last_used_at.isoformat(),
             "expires_at": self.expires_at.isoformat(),
+            "owner_pid": self.owner_pid,
             "environment": {
                 "version": self.env.version,
                 "awp_root": str(self.env.awp_root) if self.env.awp_root else None,

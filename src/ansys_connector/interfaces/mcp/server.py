@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import atexit
+import threading
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -11,8 +12,8 @@ from ansys_connector.core.policy import normalize_profile
 from ansys_connector.workflows.plans import load_plan
 
 
-STORE = SessionStore()
-atexit.register(STORE.close_all)
+_STORE: SessionStore | None = None
+_STORE_LOCK = threading.Lock()
 
 mcp = FastMCP(
     "AnsysConnector",
@@ -29,6 +30,16 @@ def _build_executor(version: str | None = None) -> tuple[EnvironmentInfo, Adapte
     env = detect_environment(version)
     registry = build_registry()
     return env, registry, WorkflowExecutor(env, registry)
+
+
+def get_store() -> SessionStore:
+    global _STORE
+    if _STORE is None:
+        with _STORE_LOCK:
+            if _STORE is None:
+                _STORE = SessionStore()
+                atexit.register(_STORE.close_all)
+    return _STORE
 
 
 @mcp.tool(description="Detect the local Python and Ansys environment.")
@@ -70,17 +81,17 @@ def open_session(
     allowed_roots: list[str] | None = None,
     workspace: str | None = None,
 ) -> dict[str, Any]:
-    return STORE.open(adapter, version, options, profile=profile, allowed_roots=allowed_roots, workspace=workspace)
+    return get_store().open(adapter, version, options, profile=profile, allowed_roots=allowed_roots, workspace=workspace)
 
 
 @mcp.tool(description="List open persistent adapter sessions.")
 def list_sessions() -> list[dict[str, Any]]:
-    return STORE.list()
+    return get_store().list()
 
 
 @mcp.tool(description="Describe one persistent adapter session, including orphaned or non-executable state.")
 def get_session(session_id: str) -> dict[str, Any]:
-    return STORE.describe(session_id)
+    return get_store().describe(session_id)
 
 
 @mcp.tool(description="Execute one action on an already-open managed session.")
@@ -89,12 +100,12 @@ def execute_session(
     action: str,
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    return STORE.execute(session_id, action, params)
+    return get_store().execute(session_id, action, params)
 
 
 @mcp.tool(description="Close a persistent managed adapter session.")
 def close_session(session_id: str) -> dict[str, Any]:
-    return STORE.close(session_id)
+    return get_store().close(session_id)
 
 
 @mcp.tool(description="Run one adapter action without keeping the session alive.")

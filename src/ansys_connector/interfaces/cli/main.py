@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 from typing import Any
@@ -13,13 +14,29 @@ from ansys_connector.core.execution import WorkflowExecutor
 from ansys_connector.workflows.plans import load_plan
 
 
+_INTEGER_PATTERN = re.compile(r"^-?\d+$")
+_NUMBER_PATTERN = re.compile(r"^-?(?:\d+\.\d*|\d*\.\d+)(?:[eE][+-]?\d+)?$")
+
+
+def _parse_cli_value(raw_value: str) -> Any:
+    stripped = raw_value.strip()
+    lowered = stripped.lower()
+    if lowered in {"true", "false", "null"}:
+        return yaml.safe_load(stripped)
+    if _INTEGER_PATTERN.fullmatch(stripped) or _NUMBER_PATTERN.fullmatch(stripped):
+        return yaml.safe_load(stripped)
+    if stripped.startswith(("{", "[", "\"", "'")):
+        return yaml.safe_load(stripped)
+    return raw_value
+
+
 def _parse_key_value(values: list[str] | None) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for raw in values or []:
         if "=" not in raw:
             raise ValueError(f"Expected KEY=VALUE format, got: {raw}")
         key, raw_value = raw.split("=", 1)
-        parsed[key] = yaml.safe_load(raw_value)
+        parsed[key] = _parse_cli_value(raw_value)
     return parsed
 
 
@@ -35,6 +52,17 @@ def _json_default(value: Any) -> Any:
 
 def _print_json(payload: Any) -> None:
     print(json.dumps(payload, indent=2, default=_json_default))
+
+
+def _normalize_payload(payload: Any) -> Any:
+    return json.loads(json.dumps(payload, default=_json_default))
+
+
+def _print_structured(payload: Any, *, as_json: bool) -> None:
+    if as_json:
+        _print_json(payload)
+        return
+    print(yaml.safe_dump(_normalize_payload(payload), sort_keys=False).rstrip())
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -56,7 +84,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--profile",
         choices=("safe", "expert"),
         default="safe",
-        help="Execution profile. Safe is default; expert unlocks raw script and TUI actions.",
+        help="Execution profile. Expert enables raw actions, which also require --option allow_raw_actions=true.",
     )
     call_parser.add_argument("--option", action="append", help="Adapter session option in KEY=VALUE format")
     call_parser.add_argument(
@@ -145,19 +173,21 @@ def main(argv: list[str] | None = None) -> int:
                 allowed_roots=args.allowed_root,
                 workspace=args.workspace,
             )
-            _print_json(result)
+            _print_structured(result, as_json=args.json)
             return 0
 
         if args.command == "run-plan":
             summary = executor.run_plan(load_plan(args.path))
-            _print_json(summary.to_dict())
+            _print_structured(summary.to_dict(), as_json=args.json)
             return 0 if summary.ok else 1
 
         parser.error(f"Unhandled command: {args.command}")
         return 2
     except Exception as exc:  # pragma: no cover - runtime and environment dependent
-        if getattr(args, "command", None) in {"call", "run-plan"} or getattr(args, "json", False):
+        if getattr(args, "json", False):
             _print_json({"ok": False, "error": str(exc)})
+        elif getattr(args, "command", None) in {"call", "run-plan"}:
+            print(f"Error: {exc}")
         else:
             print(f"Error: {exc}")
         return 1

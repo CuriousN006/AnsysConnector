@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ansysctl = "ansys_connector.cli:main"
-ansysctl-mcp = "ansys_connector.mcp_server:main"
+ansysctl = "ansys_connector.interfaces.cli.main:main"
+ansysctl-mcp = "ansys_connector.interfaces.mcp.server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

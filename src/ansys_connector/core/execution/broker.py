@@ -42,6 +42,11 @@ def session_state_file(state_dir: str | Path | None = None, *, create: bool = Tr
     return root / "sessions.json"
 
 
+def broker_state_lock_file(state_dir: str | Path | None = None, *, create: bool = True) -> Path:
+    root = resolve_broker_state_dir(state_dir, create=create)
+    return root / "sessions.lock"
+
+
 def adapter_lock_file(adapter_name: str, state_dir: str | Path | None = None, *, create: bool = True) -> Path:
     root = resolve_broker_state_dir(state_dir, create=create)
     lock_dir = root / "locks"
@@ -64,17 +69,67 @@ def append_raw_audit_record(record: dict[str, Any], state_dir: str | Path | None
     return log_path
 
 
+def pid_is_running(pid: int | None) -> bool:
+    if pid is None or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def _read_lock_metadata(lock_path: Path) -> tuple[int | None, float | None]:
+    try:
+        text = lock_path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None, None
+    payload: dict[str, str] = {}
+    for part in text.split():
+        key, _, value = part.partition("=")
+        if key and value:
+            payload[key] = value
+    pid: int | None
+    timestamp: float | None
+    try:
+        pid = int(payload["pid"]) if "pid" in payload else None
+    except ValueError:
+        pid = None
+    try:
+        timestamp = float(payload["time"]) if "time" in payload else None
+    except ValueError:
+        timestamp = None
+    return pid, timestamp
+
+
+def _lock_is_stale(lock_path: Path, stale_after_seconds: float | None) -> bool:
+    if not lock_path.exists():
+        return False
+    pid, timestamp = _read_lock_metadata(lock_path)
+    if pid is not None:
+        return not pid_is_running(pid)
+    if stale_after_seconds is None:
+        return False
+    try:
+        age_source = timestamp if timestamp is not None else lock_path.stat().st_mtime
+    except OSError:
+        return False
+    return (time.time() - age_source) >= stale_after_seconds
+
+
 @contextmanager
 def exclusive_file_lock(
     path: str | Path,
     *,
     timeout_seconds: float = 180.0,
     poll_interval: float = 0.2,
+    stale_after_seconds: float | None = None,
 ) -> Iterator[Path]:
     lock_path = Path(path)
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     deadline = time.monotonic() + timeout_seconds
     fd: int | None = None
+    stale_after = stale_after_seconds if stale_after_seconds is not None else max(timeout_seconds * 2.0, 300.0)
 
     while fd is None:
         try:
@@ -82,6 +137,17 @@ def exclusive_file_lock(
             payload = f"pid={os.getpid()} time={time.time():.6f}\n".encode("utf-8")
             os.write(fd, payload)
         except FileExistsError:
+            owner_pid, _ = _read_lock_metadata(lock_path)
+            if owner_pid == os.getpid():
+                raise TimeoutError(f"Timed out waiting for launch lock: {lock_path} (already held by this process)")
+            if _lock_is_stale(lock_path, stale_after):
+                try:
+                    lock_path.unlink()
+                except FileNotFoundError:
+                    pass
+                except OSError:
+                    pass
+                continue
             if time.monotonic() >= deadline:
                 raise TimeoutError(f"Timed out waiting for launch lock: {lock_path}")
             time.sleep(poll_interval)

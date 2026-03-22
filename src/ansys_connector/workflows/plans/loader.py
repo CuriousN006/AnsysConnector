@@ -45,6 +45,7 @@ def _load_session_config(
     if not isinstance(raw_adapter, str) or not raw_adapter.strip():
         raise ValueError(f"Session '{name}' must declare a non-empty 'adapter' field.")
     adapter = raw_adapter.strip()
+    _validate_allowed_fields(payload, _SESSION_META_FIELDS, f"Session '{name}'")
 
     profile = str(payload.get("profile", "safe"))
     raw_workspace = payload.get("workspace")
@@ -64,16 +65,11 @@ def _load_session_config(
         raise ValueError(f"Session '{name}' has a non-list 'allowed_roots' field.")
 
     if "options" in payload:
-        _validate_allowed_fields(payload, _SESSION_META_FIELDS, f"Session '{name}'")
         options = payload.get("options", {})
         if not isinstance(options, dict):
             raise ValueError(f"Session '{name}' has a non-object 'options' field.")
     else:
-        options = {
-            key: value
-            for key, value in payload.items()
-            if key not in {"adapter", "profile", "workspace", "allowed_roots"}
-        }
+        options = {}
 
     return PlanSessionConfig(
         adapter=adapter,

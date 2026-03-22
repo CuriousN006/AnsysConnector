@@ -16,6 +16,14 @@ from .session import FluentSession
 _FLUENT_LAUNCH_LOCK = threading.Lock()
 
 
+def _format_launch_error(exc: Exception) -> str:
+    details = [f"{exc.__class__.__name__}: {exc!r}"]
+    chained = exc.__cause__ or exc.__context__
+    if chained is not None and chained is not exc:
+        details.append(f"cause={chained.__class__.__name__}: {chained!r}")
+    return "; ".join(details)
+
+
 class FluentAdapter(Adapter):
     name = "fluent"
     actions = FLUENT_ACTIONS
@@ -82,4 +90,7 @@ class FluentAdapter(Adapter):
                             break
                         time.sleep(retry_delay)
 
-        raise AdapterError(f"Unable to launch Fluent after {retry_count} attempts: {last_error}")
+        raise AdapterError(
+            f"Unable to launch Fluent after {retry_count} attempts: "
+            f"{_format_launch_error(last_error) if last_error is not None else 'unknown error'}"
+        )

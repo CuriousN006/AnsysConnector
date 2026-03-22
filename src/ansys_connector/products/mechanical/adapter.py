@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-import socket
+import csv
+import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Any
@@ -12,13 +14,44 @@ from .actions import MECHANICAL_ACTIONS
 from .session import MechanicalSession
 
 
-def _find_free_local_port() -> int:
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.bind(("127.0.0.1", 0))
-        return int(sock.getsockname()[1])
-    finally:
-        sock.close()
+def _list_windows_process_ids(image_name: str) -> set[int]:
+    if os.name != "nt":
+        return set()
+    result = subprocess.run(
+        ["tasklist", "/FO", "CSV", "/NH", "/FI", f"IMAGENAME eq {image_name}"],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+    if result.returncode != 0:
+        return set()
+
+    pids: set[int] = set()
+    reader = csv.reader(line for line in result.stdout.splitlines() if line.strip())
+    for row in reader:
+        if len(row) < 2 or row[0].startswith("INFO:"):
+            continue
+        try:
+            pids.add(int(row[1]))
+        except ValueError:
+            continue
+    return pids
+
+
+def _terminate_process_ids(pids: set[int]) -> list[int]:
+    terminated: list[int] = []
+    if os.name != "nt":
+        return terminated
+    for pid in sorted(pids):
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+            text=True,
+        )
+        if result.returncode == 0:
+            terminated.append(pid)
+    return terminated
 
 
 class MechanicalAdapter(Adapter):
@@ -76,30 +109,38 @@ class MechanicalAdapter(Adapter):
             "start_instance": True,
         }
         launch_options.update(options)
-        retry_count = int(launch_options.pop("retry_count", 2))
+        retry_count = int(launch_options.pop("retry_count", 1))
         retry_delay = float(launch_options.pop("retry_delay", 2.0))
         explicit_port = launch_options.get("port")
         last_error: Exception | None = None
         last_port: int | None = None
+        cleaned_pids: list[int] = []
 
         for attempt in range(1, retry_count + 1):
             attempt_options = dict(launch_options)
-            if explicit_port is None:
-                attempt_options["port"] = _find_free_local_port()
-            last_port = int(attempt_options["port"])
+            if explicit_port is not None:
+                last_port = int(attempt_options["port"])
+            else:
+                last_port = None
+            before_launch = _list_windows_process_ids("AnsysWBU.exe")
             try:
                 client = launch_mechanical(**attempt_options)
                 return MechanicalSession(client)
             except Exception as exc:
                 last_error = exc
+                cleaned_pids = _terminate_process_ids(_list_windows_process_ids("AnsysWBU.exe") - before_launch)
                 if attempt == retry_count:
                     break
                 time.sleep(retry_delay)
 
+        cleanup_note = f" Cleaned up spawned Mechanical PIDs: {cleaned_pids}." if cleaned_pids else ""
+        port_note = f" Last attempt used port {last_port}." if last_port is not None else ""
         raise AdapterError(
             "Unable to launch Mechanical locally. "
-            f"Last attempt used port {last_port}. "
+            f"{port_note}"
+            f"{cleanup_note}"
+            " Automatic retries default to 1 because partially started launches can consume a demo seat. "
             "Try connect_only mode with a known running server, or override "
-            "'port'/'transport_mode' in session options if this installation needs a specific setup. "
+            "'port', 'transport_mode', or 'retry_count' in session options if this installation needs a specific setup. "
             f"Underlying error: {last_error}"
         )

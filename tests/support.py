@@ -33,6 +33,7 @@ class RecordingSession(AdapterSession):
         self.started = threading.Event()
         self.release = threading.Event()
         self.block_on_execute = False
+        self.fail_on_close = False
 
     def execute(self, action: str, params: dict) -> dict:
         self.calls.append((action, dict(params)))
@@ -43,6 +44,8 @@ class RecordingSession(AdapterSession):
 
     def close(self) -> None:
         self.closed += 1
+        if self.fail_on_close:
+            raise RuntimeError("close failed")
 
 
 class FakeAdapter(Adapter):
@@ -76,6 +79,8 @@ class FakeAdapter(Adapter):
         session = RecordingSession()
         if options.get("block_on_execute"):
             session.block_on_execute = True
+        if options.get("fail_on_close"):
+            session.fail_on_close = True
         self.opened_sessions.append(session)
         self.opened_workspaces.append(workspace)
         return session

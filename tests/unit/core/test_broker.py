@@ -27,6 +27,14 @@ class BrokerUtilitiesTests(unittest.TestCase):
             self.assertEqual(state_file.parent, Path(temp_dir).resolve(strict=False))
             self.assertEqual(state_file.name, "sessions.json")
 
+    def test_exclusive_file_lock_recovers_stale_owner(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            lock_path = Path(temp_dir) / "launch.lock"
+            lock_path.write_text("pid=999999 time=0\n", encoding="utf-8")
+
+            with exclusive_file_lock(lock_path, timeout_seconds=0.2, poll_interval=0.02, stale_after_seconds=0.0):
+                self.assertTrue(lock_path.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

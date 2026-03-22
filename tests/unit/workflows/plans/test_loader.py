@@ -105,6 +105,28 @@ class PlanLoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "duplicate step labels"):
                 load_plan(plan_path)
 
+    def test_plan_rejects_implicit_session_options(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan_path = Path(temp_dir) / "plan.yaml"
+            plan_path.write_text(
+                "\n".join(
+                    [
+                        "name: hidden-options",
+                        "sessions:",
+                        "  source:",
+                        "    adapter: fluent",
+                        "    processor_count: 2",
+                        "steps:",
+                        "  - session: source",
+                        "    action: version",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "unsupported fields"):
+                load_plan(plan_path)
+
     def test_plan_rejects_step_labels_with_dots(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             plan_path = Path(temp_dir) / "plan.yaml"

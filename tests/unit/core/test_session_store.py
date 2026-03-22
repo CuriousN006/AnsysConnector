@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import json
 import tempfile
 import threading
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from ansys_connector.core.execution.session_store import SessionStore
 from ansys_connector.core.registry import AdapterRegistry
@@ -157,6 +159,118 @@ class SessionStoreTests(unittest.TestCase):
 
         store.close_all()
         reloaded.close_all()
+
+    def test_close_all_keeps_failed_shutdown_record(self) -> None:
+        store = self.build_store()
+        opened = store.open("fake", None, {"fail_on_close": True})
+
+        store.close_all()
+
+        described = store.describe(opened["session_id"])
+        self.assertEqual(described["status"], "orphaned")
+        self.assertFalse(described["live_session"])
+        self.assertEqual(self.fake_adapter.opened_sessions[0].closed, 1)
+
+    def test_store_persist_merges_existing_remote_sessions(self) -> None:
+        existing_session_id = "remote-session"
+        state_file = Path(self._state_dir.name) / "sessions.json"
+        state_file.write_text(
+            json.dumps(
+                {
+                    "sessions": [
+                        {
+                            "session_id": existing_session_id,
+                            "adapter": "fake",
+                            "version": "261",
+                            "profile": "safe",
+                            "workspace": str(Path(self._state_dir.name) / "remote"),
+                            "options": {},
+                            "allowed_roots": [],
+                            "status": "open",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "last_used_at": datetime.now(timezone.utc).isoformat(),
+                            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+                            "owner_pid": 999999,
+                            "environment": {"version": "261", "awp_root": "D:/ANSYS"},
+                        }
+                    ]
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        with mock.patch("ansys_connector.core.execution.session_store.pid_is_running", return_value=True):
+            store = self.build_store()
+            opened = store.open("fake", None)
+
+        payload = json.loads(state_file.read_text(encoding="utf-8"))
+        session_ids = {session["session_id"] for session in payload["sessions"]}
+        self.assertEqual(session_ids, {existing_session_id, opened["session_id"]})
+
+    def test_remote_live_sessions_still_consume_capacity(self) -> None:
+        state_file = Path(self._state_dir.name) / "sessions.json"
+        state_file.write_text(
+            json.dumps(
+                {
+                    "sessions": [
+                        {
+                            "session_id": "remote-session",
+                            "adapter": "fake",
+                            "version": "261",
+                            "profile": "safe",
+                            "workspace": str(Path(self._state_dir.name) / "remote"),
+                            "options": {},
+                            "allowed_roots": [],
+                            "status": "open",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "last_used_at": datetime.now(timezone.utc).isoformat(),
+                            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+                            "owner_pid": 999999,
+                            "environment": {"version": "261", "awp_root": "D:/ANSYS"},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with mock.patch("ansys_connector.core.execution.session_store.pid_is_running", return_value=True):
+            store = self.build_store(max_sessions=1, max_sessions_per_adapter=1)
+            with self.assertRaisesRegex(RuntimeError, "Session limit reached"):
+                store.open("fake", None)
+
+    def test_close_rejects_remote_live_session(self) -> None:
+        state_file = Path(self._state_dir.name) / "sessions.json"
+        state_file.write_text(
+            json.dumps(
+                {
+                    "sessions": [
+                        {
+                            "session_id": "remote-session",
+                            "adapter": "fake",
+                            "version": "261",
+                            "profile": "safe",
+                            "workspace": str(Path(self._state_dir.name) / "remote"),
+                            "options": {},
+                            "allowed_roots": [],
+                            "status": "open",
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                            "last_used_at": datetime.now(timezone.utc).isoformat(),
+                            "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+                            "owner_pid": 999999,
+                            "environment": {"version": "261", "awp_root": "D:/ANSYS"},
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        with mock.patch("ansys_connector.core.execution.session_store.pid_is_running", return_value=True):
+            store = self.build_store()
+            with self.assertRaisesRegex(RuntimeError, "owned by process 999999"):
+                store.close("remote-session")
 
 
 if __name__ == "__main__":

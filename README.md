@@ -108,6 +108,9 @@ Current adapter maturity:
 - `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--workspace`, `--allowed-root`, `--option`, and `--param`
 - `ansysctl run-plan <file>`: execute a YAML or JSON workflow plan
 
+`ansysctl call` and `ansysctl run-plan` now emit YAML by default for readable terminal output.
+Add `--json` when another tool needs machine-readable output.
+
 Plan session config supports `adapter`, `profile`, `workspace`, `allowed_roots`, and `options`:
 
 ```yaml
@@ -133,6 +136,7 @@ Step objects are strict and only accept:
 - `continue_on_error`
 
 Legacy `adapters` and step-level `adapter` keys are still accepted for backward compatibility, but new plans should prefer `sessions` and `session`.
+Session launch options must now live under `options`; hidden top-level option fallback is rejected.
 
 Step params can also reference prior step results or session metadata:
 
@@ -198,6 +202,8 @@ Broker state is persisted locally so managed sessions can be rediscovered as `or
 By default the broker stores metadata under `%LOCALAPPDATA%\AnsysConnector\broker` on Windows
 or `~/.ansys_connector/broker` elsewhere. Set `ANSYS_CONNECTOR_STATE_DIR` to override it.
 Raw expert actions are also appended to `raw-actions.jsonl` in that broker state directory by default.
+Remote sessions owned by another live process are preserved in broker metadata and still count toward session limits,
+but they cannot be closed from a different process until adapter-specific reattach support exists.
 
 Recommended agent flow for Fluent:
 
@@ -251,3 +257,4 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 - Declarative plans now support named session handles, so one workflow can keep multiple sessions for the same product alive.
 - Fluent launch is serialized with both in-process and broker file locks so separate `ansysctl` processes coordinate on startup.
 - Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.
+- Mechanical local launch defaults to a single attempt because partially started launches can consume the Student demo seat.
