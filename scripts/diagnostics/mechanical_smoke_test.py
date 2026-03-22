@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import os
+import socket
 from pathlib import Path
 
 from ansys.mechanical.core import launch_mechanical
+
+
+def _find_free_local_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+    finally:
+        sock.close()
 
 
 def main() -> int:
@@ -21,7 +31,8 @@ def main() -> int:
         cleanup_on_exit=True,
         start_timeout=180,
         version=261,
-        transport_mode="insecure",
+        start_instance=True,
+        port=_find_free_local_port(),
     )
 
     try:

@@ -6,6 +6,8 @@ import yaml
 
 from ansys_connector.products.base import AdapterError, AdapterSession
 
+from .runtime import suppress_fluent_launcher_noise
+
 
 def _escape_scheme_string(value: str) -> str:
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -100,7 +102,8 @@ class FluentSession(AdapterSession):
                 raise AdapterError(f"Unsupported Fluent action: {action}")
 
     def close(self) -> None:
-        self._session.exit()
+        with suppress_fluent_launcher_noise():
+            self._session.exit(timeout=30, timeout_force=True, wait=45)
 
     def _resolve_path(self, path: str | None) -> Any:
         obj: Any = self._session.settings

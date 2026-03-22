@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import socket
+import time
 from pathlib import Path
 from typing import Any
 
@@ -8,6 +10,15 @@ from ansys_connector.products.base import Adapter, AdapterError, AdapterSession,
 
 from .actions import MECHANICAL_ACTIONS
 from .session import MechanicalSession
+
+
+def _find_free_local_port() -> int:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+    finally:
+        sock.close()
 
 
 class MechanicalAdapter(Adapter):
@@ -62,8 +73,33 @@ class MechanicalAdapter(Adapter):
             "cleanup_on_exit": True,
             "start_timeout": 180,
             "version": int(env.version) if env.version else None,
-            "transport_mode": options.get("transport_mode", "insecure"),
+            "start_instance": True,
         }
         launch_options.update(options)
-        client = launch_mechanical(**launch_options)
-        return MechanicalSession(client)
+        retry_count = int(launch_options.pop("retry_count", 2))
+        retry_delay = float(launch_options.pop("retry_delay", 2.0))
+        explicit_port = launch_options.get("port")
+        last_error: Exception | None = None
+        last_port: int | None = None
+
+        for attempt in range(1, retry_count + 1):
+            attempt_options = dict(launch_options)
+            if explicit_port is None:
+                attempt_options["port"] = _find_free_local_port()
+            last_port = int(attempt_options["port"])
+            try:
+                client = launch_mechanical(**attempt_options)
+                return MechanicalSession(client)
+            except Exception as exc:
+                last_error = exc
+                if attempt == retry_count:
+                    break
+                time.sleep(retry_delay)
+
+        raise AdapterError(
+            "Unable to launch Mechanical locally. "
+            f"Last attempt used port {last_port}. "
+            "Try connect_only mode with a known running server, or override "
+            "'port'/'transport_mode' in session options if this installation needs a specific setup. "
+            f"Underlying error: {last_error}"
+        )

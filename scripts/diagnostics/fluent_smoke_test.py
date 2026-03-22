@@ -25,6 +25,7 @@ def main() -> int:
         ui_mode="no_gui",
         start_timeout=180,
         start_transcript=False,
+        start_watchdog=True,
         cleanup_on_exit=True,
         fluent_path=str(fluent_exe),
         cwd=str(Path.cwd()),
@@ -35,7 +36,7 @@ def main() -> int:
         print(f"Connected to Fluent {version}")
         print("Smoke test command completed.")
     finally:
-        session.exit()
+        session.exit(timeout=30, timeout_force=True, wait=45)
 
     return 0
 

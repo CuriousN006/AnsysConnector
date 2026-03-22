@@ -12,3 +12,4 @@ tmp/
 .ansys_connector/
 *.trn
 *.log
+cleanup-fluent-*.bat

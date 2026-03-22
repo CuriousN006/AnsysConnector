@@ -9,6 +9,7 @@ from ansys_connector.core.environment import EnvironmentInfo
 from ansys_connector.products.base import Adapter, AdapterError, AdapterSession, AdapterStatus
 
 from .actions import FLUENT_ACTIONS
+from .runtime import suppress_fluent_launcher_noise
 from .session import FluentSession
 
 
@@ -56,6 +57,7 @@ class FluentAdapter(Adapter):
             "ui_mode": "no_gui",
             "start_timeout": 180,
             "start_transcript": False,
+            "start_watchdog": True,
             "cleanup_on_exit": True,
             "cwd": str(workspace),
             "fluent_path": str(env.fluent_exe),
@@ -71,7 +73,8 @@ class FluentAdapter(Adapter):
             with exclusive_file_lock(adapter_lock_file(self.name), timeout_seconds=launch_lock_timeout):
                 for attempt in range(1, retry_count + 1):
                     try:
-                        session = pyfluent.launch_fluent(**launch_options)
+                        with suppress_fluent_launcher_noise():
+                            session = pyfluent.launch_fluent(**launch_options)
                         return FluentSession(session)
                     except Exception as exc:  # pragma: no cover - product startup timing
                         last_error = exc
