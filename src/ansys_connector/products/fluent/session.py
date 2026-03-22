@@ -79,25 +79,25 @@ class FluentSession(AdapterSession):
             case "command":
                 return self._run_command(params)
             case "read_case":
-                return self._run_command({"path": "file.read_case", **params})
+                return self._run_command({"path": "file.read_case", "kwargs": dict(params)})
             case "read_case_data":
-                return self._run_command({"path": "file.read_case_data", **params})
+                return self._run_command({"path": "file.read_case_data", "kwargs": dict(params)})
             case "read_mesh":
-                return self._run_command({"path": "file.read_mesh", **params})
+                return self._run_command({"path": "file.read_mesh", "kwargs": dict(params)})
             case "write_case":
-                return self._run_command({"path": "file.write_case", **params})
+                return self._run_command({"path": "file.write_case", "kwargs": dict(params)})
             case "write_case_data":
-                return self._run_command({"path": "file.write_case_data", **params})
+                return self._run_command({"path": "file.write_case_data", "kwargs": dict(params)})
             case "write_data":
-                return self._run_command({"path": "file.write_data", **params})
+                return self._run_command({"path": "file.write_data", "kwargs": dict(params)})
             case "start_transcript":
-                return self._run_command({"path": "file.start_transcript", **params})
+                return self._run_command({"path": "file.start_transcript", "kwargs": dict(params)})
             case "stop_transcript":
-                return self._run_command({"path": "file.stop_transcript", **params})
+                return self._run_command({"path": "file.stop_transcript"})
             case "hybrid_initialize":
-                return self._run_command({"path": "solution.initialization.hybrid_initialize", **params})
+                return self._run_command({"path": "solution.initialization.hybrid_initialize", "kwargs": dict(params)})
             case "iterate":
-                return self._run_command({"path": "solution.run_calculation.iterate", **params})
+                return self._run_command({"path": "solution.run_calculation.iterate", "kwargs": dict(params)})
             case "initialize_solution":
                 return self._initialize_solution(params)
             case "run_iterations":
@@ -109,7 +109,7 @@ class FluentSession(AdapterSession):
             case "export_results":
                 return self._export_results(params)
             case "checkpoint_case_data":
-                return self._run_command({"path": "file.write_case_data", **params})
+                return self._run_command({"path": "file.write_case_data", "kwargs": dict(params)})
             case "get_solver_health":
                 return self._get_solver_health()
             case _:
