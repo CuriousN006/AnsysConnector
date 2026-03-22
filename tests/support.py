@@ -60,6 +60,7 @@ class FakeAdapter(Adapter):
             "danger",
             "expert",
             "Expert-only raw action.",
+            is_raw=True,
             parameters=(ActionParameter("script", kind="string", required=True),),
         ),
     )

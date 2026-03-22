@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
 
 STATE_DIR_ENV_VAR = "ANSYS_CONNECTOR_STATE_DIR"
@@ -46,6 +48,20 @@ def adapter_lock_file(adapter_name: str, state_dir: str | Path | None = None, *,
     if create:
         lock_dir.mkdir(parents=True, exist_ok=True)
     return lock_dir / f"{adapter_name}.launch.lock"
+
+
+def raw_audit_log_file(state_dir: str | Path | None = None, *, create: bool = True) -> Path:
+    root = resolve_broker_state_dir(state_dir, create=create)
+    return root / "raw-actions.jsonl"
+
+
+def append_raw_audit_record(record: dict[str, Any], state_dir: str | Path | None = None) -> Path:
+    log_path = raw_audit_log_file(state_dir, create=True)
+    payload = {"timestamp": datetime.now(timezone.utc).isoformat(), **record}
+    with log_path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, default=str))
+        stream.write("\n")
+    return log_path
 
 
 @contextmanager

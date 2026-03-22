@@ -13,6 +13,7 @@ WORKBENCH_ACTIONS: tuple[ActionDefinition, ...] = (
         name="script",
         profile="expert",
         description="Execute raw Workbench scripting text. This bypasses typed safeguards.",
+        is_raw=True,
         parameters=(
             ActionParameter("script", kind="string", required=True, description="Workbench script body."),
             ActionParameter("args", kind="any", description="Optional script arguments."),

@@ -116,6 +116,7 @@ def prepare_action(
     action: str,
     params: dict[str, Any] | None,
     profile: str | None = None,
+    raw_actions_enabled: bool = False,
     allowed_roots: list[str] | tuple[str, ...] | str | Path | None = None,
     cwd: Path | None = None,
 ) -> dict[str, Any]:
@@ -127,11 +128,17 @@ def prepare_action(
         allowed_roots=normalize_allowed_roots(allowed_roots, cwd=workspace),
         cwd=workspace,
         env=env,
+        raw_actions_enabled=raw_actions_enabled,
     )
     definition = adapter.get_action(action)
     if normalized_profile == "safe" and definition.profile != "safe":
         raise AdapterError(
             f"Action '{adapter.name}.{action}' requires the expert profile. "
             "Open the session with profile='expert' to use raw script or TUI execution."
+        )
+    if definition.is_raw and not context.raw_actions_enabled:
+        raise AdapterError(
+            f"Action '{adapter.name}.{action}' is a raw expert surface. "
+            "Set session option 'allow_raw_actions=true' to opt in explicitly."
         )
     return validate_action_params(definition, params, context)

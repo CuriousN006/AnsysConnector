@@ -2,8 +2,10 @@
 
 from .broker import (
     STATE_DIR_ENV_VAR,
+    append_raw_audit_record,
     adapter_lock_file,
     exclusive_file_lock,
+    raw_audit_log_file,
     resolve_broker_state_dir,
     session_state_file,
 )
@@ -27,9 +29,11 @@ __all__ = [
     "StepExecutionResult",
     "WorkflowExecutor",
     "STATE_DIR_ENV_VAR",
+    "append_raw_audit_record",
     "adapter_lock_file",
     "exclusive_file_lock",
     "open_managed_session",
+    "raw_audit_log_file",
     "resolve_broker_state_dir",
     "session_state_file",
 ]

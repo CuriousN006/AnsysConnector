@@ -50,6 +50,7 @@ class ActionExecutionContext:
     allowed_roots: tuple[Path, ...]
     cwd: Path
     env: EnvironmentInfo
+    raw_actions_enabled: bool = False
 
 
 ActionValidator = Callable[[dict[str, Any], ActionExecutionContext], dict[str, Any]]
@@ -65,6 +66,7 @@ class ActionDefinition:
     parameters: tuple[ActionParameter, ...] = ()
     path_fields: tuple[str, ...] = ()
     allow_extra: bool = False
+    is_raw: bool = False
     validator: ActionValidator | None = field(default=None, repr=False, compare=False)
 
     def to_dict(self) -> dict[str, Any]:
@@ -74,6 +76,7 @@ class ActionDefinition:
             "description": self.description,
             "path_fields": list(self.path_fields),
             "allow_extra": self.allow_extra,
+            "is_raw": self.is_raw,
             "parameters": [parameter.to_dict() for parameter in self.parameters],
         }
 

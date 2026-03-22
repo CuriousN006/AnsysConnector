@@ -130,6 +130,7 @@ FLUENT_ACTIONS: tuple[ActionDefinition, ...] = (
         name="scheme",
         profile="expert",
         description="Execute raw Scheme in Fluent. This bypasses typed safeguards.",
+        is_raw=True,
         parameters=(
             ActionParameter("mode", kind="string", description="One of eval, string_eval, or exec."),
             ActionParameter("command", kind="string", description="Single Scheme expression."),
@@ -144,6 +145,7 @@ FLUENT_ACTIONS: tuple[ActionDefinition, ...] = (
         name="tui",
         profile="expert",
         description="Execute raw Fluent TUI commands. This bypasses typed safeguards.",
+        is_raw=True,
         parameters=(
             ActionParameter("command", kind="string", description="Single TUI command."),
             ActionParameter("commands", kind="string", repeated=True, description="Multiple TUI commands."),
@@ -156,6 +158,7 @@ FLUENT_ACTIONS: tuple[ActionDefinition, ...] = (
         name="command",
         profile="expert",
         description="Invoke a raw Fluent callable path with explicit args/kwargs only.",
+        is_raw=True,
         parameters=(
             ActionParameter("path", kind="string", required=True, description="Callable Fluent settings path."),
             ActionParameter("args", kind="array", description="Positional arguments."),

@@ -27,18 +27,38 @@ class PolicyTests(unittest.TestCase):
 
     def test_expert_fluent_session_allows_raw_scheme(self) -> None:
         raw = RecordingSession()
-        session = PolicyEnforcedSession(
-            adapter=FluentAdapter(),
-            session=raw,
-            env=build_env(),
-            profile="expert",
-            allowed_roots=(Path.cwd().resolve(strict=False),),
-        )
+        with self.assertRaisesRegex(Exception, "allow_raw_actions=true"):
+            PolicyEnforcedSession(
+                adapter=FluentAdapter(),
+                session=raw,
+                env=build_env(),
+                profile="expert",
+                allowed_roots=(Path.cwd().resolve(strict=False),),
+            ).execute("scheme", {"mode": "string_eval", "command": "(cx-version)"})
 
-        result = session.execute("scheme", {"mode": "string_eval", "command": "(cx-version)"})
+    def test_expert_fluent_session_allows_raw_scheme_with_explicit_opt_in(self) -> None:
+        raw = RecordingSession()
+        with tempfile.TemporaryDirectory() as state_dir:
+            session = PolicyEnforcedSession(
+                adapter=FluentAdapter(),
+                session=raw,
+                env=build_env(),
+                profile="expert",
+                allowed_roots=(Path.cwd().resolve(strict=False),),
+                session_options={
+                    "allow_raw_actions": True,
+                    "broker_state_dir": state_dir,
+                },
+                session_label="policy-test",
+            )
 
-        self.assertEqual(result["action"], "scheme")
-        self.assertEqual(raw.calls[0][1]["command"], "(cx-version)")
+            result = session.execute("scheme", {"mode": "string_eval", "command": "(cx-version)"})
+
+            self.assertEqual(result["action"], "scheme")
+            self.assertEqual(raw.calls[0][1]["command"], "(cx-version)")
+            audit_log = Path(state_dir) / "raw-actions.jsonl"
+            self.assertTrue(audit_log.exists())
+            self.assertIn("policy-test", audit_log.read_text(encoding="utf-8"))
 
     def test_safe_mechanical_session_rejects_python(self) -> None:
         raw = RecordingSession()
@@ -91,6 +111,7 @@ class PolicyTests(unittest.TestCase):
             env=build_env(),
             profile="expert",
             allowed_roots=(Path.cwd().resolve(strict=False),),
+            session_options={"allow_raw_actions": True},
         )
 
         with self.assertRaisesRegex(Exception, "Unsupported parameters"):

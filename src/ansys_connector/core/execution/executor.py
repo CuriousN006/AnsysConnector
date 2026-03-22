@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from ansys_connector.core.environment import EnvironmentInfo
 from ansys_connector.core.policy import prepare_action
@@ -76,6 +77,7 @@ class WorkflowExecutor:
             action=action,
             params=params,
             profile=profile,
+            raw_actions_enabled=bool((adapter_options or {}).get("allow_raw_actions", False)),
             allowed_roots=allowed_roots,
             cwd=workspace_path,
         )
@@ -86,6 +88,7 @@ class WorkflowExecutor:
             profile=profile,
             allowed_roots=allowed_roots,
             workspace=workspace_path,
+            session_label=f"call:{adapter_name}:{uuid4()}",
         )
         try:
             return session.execute(action, validated)
@@ -135,6 +138,7 @@ class WorkflowExecutor:
                 action=step.action,
                 params=step.params,
                 profile=config.profile,
+                raw_actions_enabled=bool(config.options.get("allow_raw_actions", False)),
                 allowed_roots=list(config.allowed_roots),
                 cwd=workspace_path,
             )
@@ -146,6 +150,7 @@ class WorkflowExecutor:
                     profile=config.profile,
                     allowed_roots=list(config.allowed_roots),
                     workspace=workspace_path,
+                    session_label=step.session,
                 )
             data = sessions[step.session].execute(step.action, validated)
             return StepExecutionResult(

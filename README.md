@@ -54,7 +54,7 @@ Call adapters directly:
 ansysctl call fluent version
 ansysctl call workbench version
 ansysctl call fluent describe --param path=setup.general
-ansysctl call fluent scheme --profile expert --param mode=string_eval --param command="(cx-version)"
+ansysctl call fluent scheme --profile expert --option allow_raw_actions=true --param mode=string_eval --param command="(cx-version)"
 ansysctl call fluent start_transcript --param file_name="outputs/fluent.txt"
 ansysctl call fluent version --workspace .\runs\fluent-session-01
 ```
@@ -64,18 +64,19 @@ ansysctl call fluent version --workspace .\runs\fluent-session-01
 The bridge has two execution profiles:
 
 - `safe`: default. Only typed actions are allowed and safe file actions are restricted to the workspace plus `outputs\` unless extra roots are provided.
-- `expert`: opt-in. Unlocks raw script, Scheme, TUI, and callable-path execution.
+- `expert`: opt-in. Unlocks expert actions, but raw script, Scheme, TUI, and callable-path execution still require `allow_raw_actions=true`.
 
 Examples:
 
 ```powershell
 ansysctl call fluent scheme --param mode=string_eval --param command="(cx-version)"
-ansysctl call fluent scheme --profile expert --param mode=string_eval --param command="(cx-version)"
+ansysctl call fluent scheme --profile expert --option allow_raw_actions=true --param mode=string_eval --param command="(cx-version)"
 ansysctl call fluent write_case --param file_name="outputs\case.cas.h5"
 ansysctl call fluent write_case --allowed-root "D:\ExternalCases" --param file_name="D:\ExternalCases\case.cas.h5"
 ```
 
 The first `scheme` call fails fast because it tries an expert-only action in the safe profile.
+Even in expert mode, raw actions require the explicit session option `allow_raw_actions=true`.
 
 ## Adapter actions
 
@@ -118,6 +119,7 @@ sessions:
     allowed_roots:
       - outputs
     options:
+      allow_raw_actions: true
       processor_count: 2
       ui_mode: no_gui
 ```
@@ -168,6 +170,7 @@ Managed session metadata includes:
 Broker state is persisted locally so managed sessions can be rediscovered as `orphaned` after a process restart.
 By default the broker stores metadata under `%LOCALAPPDATA%\AnsysConnector\broker` on Windows
 or `~/.ansys_connector/broker` elsewhere. Set `ANSYS_CONNECTOR_STATE_DIR` to override it.
+Raw expert actions are also appended to `raw-actions.jsonl` in that broker state directory by default.
 
 Recommended agent flow for Fluent:
 
@@ -180,7 +183,7 @@ Recommended agent flow for Fluent:
 
 Raw control requires an explicit expert session:
 
-1. `open_session(adapter="fluent", profile="expert")`
+1. `open_session(adapter="fluent", profile="expert", options={"allow_raw_actions": true})`
 2. `execute_session(..., action="scheme" | "tui" | "command", ...)`
 3. `close_session(...)`
 
@@ -207,7 +210,7 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 - `workbench_smoke_test.py`: passed against Workbench server version 261
 - `ansysctl call fluent version`: verified
 - `ansysctl call fluent scheme` in safe mode: verified to fail fast before launch
-- `ansysctl call fluent scheme --profile expert`: verified
+- `ansysctl call fluent scheme --profile expert --option allow_raw_actions=true`: verified
 - `ansysctl call workbench version`: verified
 - MCP-style persistent Workbench `open_session` / `get_session` / `close_session`: verified
 - `python -m unittest discover -s tests -v`: currently passing

@@ -13,6 +13,7 @@ MECHANICAL_ACTIONS: tuple[ActionDefinition, ...] = (
         name="python",
         profile="expert",
         description="Execute raw Mechanical Python. This bypasses typed safeguards.",
+        is_raw=True,
         parameters=(
             ActionParameter("script", kind="string", required=True, description="Mechanical Python script body."),
         ),

@@ -55,6 +55,43 @@ class WorkflowExecutorTests(unittest.TestCase):
         self.assertEqual(summary.results[0].session, "source")
         self.assertEqual(summary.results[1].session, "target")
 
+    def test_raw_action_requires_explicit_opt_in(self) -> None:
+        adapter = FakeAdapter()
+        registry = AdapterRegistry(adapters={"fake": adapter})
+        executor = WorkflowExecutor(build_env(), registry)
+
+        with self.assertRaisesRegex(Exception, "allow_raw_actions=true"):
+            executor.call(
+                "fake",
+                "danger",
+                params={"script": "print('boom')"},
+                profile="expert",
+            )
+
+    def test_plan_can_opt_into_raw_actions(self) -> None:
+        adapter = FakeAdapter()
+        registry = AdapterRegistry(adapters={"fake": adapter})
+        executor = WorkflowExecutor(build_env(), registry)
+
+        plan = ExecutionPlan(
+            name="raw-plan",
+            sessions={
+                "expert_fake": PlanSessionConfig(
+                    adapter="fake",
+                    profile="expert",
+                    options={"allow_raw_actions": True},
+                )
+            },
+            steps=[
+                PlanStep(session="expert_fake", action="danger", params={"script": "print('ok')"}),
+            ],
+        )
+
+        summary = executor.run_plan(plan)
+
+        self.assertTrue(summary.ok)
+        self.assertEqual(summary.results[0].data["action"], "danger")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -19,7 +19,8 @@ mcp = FastMCP(
     instructions=(
         "Use this server to inspect the local Ansys installation, discover safe and expert adapter actions, "
         "open managed product sessions, inspect session health, execute adapter actions, and run declarative plans. "
-        "Safe sessions only permit typed actions. Expert sessions are required for raw script, Scheme, or TUI."
+        "Safe sessions only permit typed actions. Expert sessions are required for raw script, Scheme, or TUI, "
+        "and raw expert surfaces also require options.allow_raw_actions=true."
     ),
 )
 

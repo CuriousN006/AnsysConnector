@@ -6,6 +6,7 @@ sessions:
     profile: expert
     workspace: runs/fluent-version-and-scheme
     options:
+      allow_raw_actions: true
       product_version: 261
       mode: solver
       dimension: 3

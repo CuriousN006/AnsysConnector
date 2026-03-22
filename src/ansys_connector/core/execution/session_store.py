@@ -199,6 +199,7 @@ class SessionStore:
         workspace_path = resolve_workspace(workspace)
         normalized_roots = normalize_allowed_roots(allowed_roots, cwd=workspace_path)
         session_options = dict(options or {})
+        session_id = str(uuid4())
 
         self._reserve_capacity(adapter_name)
         try:
@@ -209,12 +210,13 @@ class SessionStore:
                 profile=normalized_profile,
                 allowed_roots=[str(root) for root in normalized_roots],
                 workspace=workspace_path,
+                session_label=session_id,
             )
         finally:
             self._release_capacity(adapter_name)
 
         managed = ManagedSession.create(
-            session_id=str(uuid4()),
+            session_id=session_id,
             adapter=adapter_name,
             version=env.version,
             profile=normalized_profile,
