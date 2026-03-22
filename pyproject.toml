@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=82", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ansys-connector"
+version = "0.1.0"
+description = "Generic CLI automation bridge for local Ansys installations."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "PyYAML>=6.0",
+  "ansys-fluent-core",
+  "ansys-mechanical-core",
+  "ansys-workbench-core",
+  "mcp",
+]
+
+[project.scripts]
+ansysctl = "ansys_connector.cli:main"
+ansysctl-mcp = "ansys_connector.mcp_server:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

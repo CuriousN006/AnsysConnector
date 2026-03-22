@@ -1,0 +1,5 @@
+PyYAML>=6.0
+ansys-fluent-core
+ansys-mechanical-core
+ansys-workbench-core
+mcp

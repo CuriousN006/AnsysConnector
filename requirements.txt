@@ -1,0 +1,4 @@
+ansys-fluent-core
+ansys-mechanical-core
+ansys-workbench-core
+mcp

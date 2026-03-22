@@ -1,0 +1,11 @@
+name: workbench-version-check
+
+adapters:
+  workbench:
+    profile: safe
+    options:
+      show_gui: false
+
+steps:
+  - adapter: workbench
+    action: version

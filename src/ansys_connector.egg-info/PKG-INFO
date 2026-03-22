@@ -1,0 +1,102 @@
+Metadata-Version: 2.4
+Name: ansys-connector
+Version: 0.1.0
+Summary: Generic CLI automation bridge for local Ansys installations.
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: PyYAML>=6.0
+Requires-Dist: ansys-fluent-core
+Requires-Dist: ansys-mechanical-core
+Requires-Dist: ansys-workbench-core
+Requires-Dist: mcp
+
+# AnsysConnector
+
+Generic local automation tooling for Ansys products.
+
+The project now has two layers:
+
+- `scripts\`: direct smoke tests for the local installation
+- `ansysctl`: a reusable CLI with product adapters and declarative plans
+
+## What is set up
+
+- A local virtual environment at `.\.venv`
+- PyAnsys client packages for Fluent, Mechanical, and Workbench
+- A Python package under `src\ansys_connector`
+- Example plans under `examples\`
+
+## Quick start
+
+Activate the virtual environment in PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Install the local package in editable mode:
+
+```powershell
+python -m pip install -e .
+```
+
+Inspect the detected environment:
+
+```powershell
+ansysctl env
+ansysctl adapters
+```
+
+Run the example plans:
+
+```powershell
+ansysctl run-plan .\examples\fluent\version.yaml
+ansysctl run-plan .\examples\fluent\version_and_scheme.yaml
+ansysctl run-plan .\examples\workbench\version.yaml
+```
+
+Call adapters directly:
+
+```powershell
+ansysctl call fluent version
+ansysctl call workbench version
+ansysctl call fluent scheme --param mode=string_eval --param command="(cx-version)"
+```
+
+## Smoke tests
+
+Run the environment check:
+
+```powershell
+python .\scripts\ansys_env_check.py
+```
+
+Run individual smoke tests:
+
+```powershell
+python .\scripts\fluent_smoke_test.py
+python .\scripts\workbench_smoke_test.py
+python .\scripts\mechanical_smoke_test.py
+```
+
+## CLI structure
+
+- `ansysctl env`: report Python and local Ansys installation details
+- `ansysctl adapters`: list which adapters are currently usable
+- `ansysctl call <adapter> <action>`: run one action with optional `--option` and `--param`
+- `ansysctl run-plan <file>`: execute a YAML or JSON workflow plan
+
+## Current status on this machine
+
+- `ansys_env_check.py`: passed
+- `fluent_smoke_test.py`: passed against Ansys Fluent 2026 R1
+- `workbench_smoke_test.py`: passed against Workbench server version 261
+- `ansysctl call fluent version`: verified
+- `ansysctl call workbench version`: verified
+- `mechanical_smoke_test.py`: launch attempt starts licensing, but the local gRPC port does not come up yet
+
+## Notes
+
+- These tools assume the local Ansys Student installation exposes `AWP_ROOT261`.
+- Fluent is the strongest first target because PyFluent supports both high-level settings and raw TUI/Scheme execution.
+- Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.

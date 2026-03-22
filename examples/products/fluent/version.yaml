@@ -1,0 +1,19 @@
+name: fluent-version-check
+
+adapters:
+  fluent:
+    profile: safe
+    options:
+      product_version: 261
+      mode: solver
+      dimension: 3
+      precision: double
+      processor_count: 2
+      ui_mode: no_gui
+      start_timeout: 180
+      start_transcript: false
+      cleanup_on_exit: true
+
+steps:
+  - adapter: fluent
+    action: version
