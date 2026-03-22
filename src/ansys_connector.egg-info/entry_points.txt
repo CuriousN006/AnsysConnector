@@ -1,3 +1,0 @@
-[console_scripts]
-ansysctl = ansys_connector.cli:main
-ansysctl-mcp = ansys_connector.mcp_server:main
