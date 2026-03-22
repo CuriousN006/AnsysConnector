@@ -13,6 +13,7 @@ class AdapterError(RuntimeError):
 
 
 ActionProfile = Literal["safe", "expert"]
+AdapterMaturity = Literal["stable", "beta", "experimental"]
 ParameterKind = Literal["string", "integer", "number", "boolean", "object", "array", "path", "any"]
 
 
@@ -84,6 +85,7 @@ class AdapterStatus:
     name: str
     available: bool
     actions: tuple[ActionDefinition, ...]
+    maturity: AdapterMaturity = "stable"
     reason: str | None = None
     details: dict[str, Any] = field(default_factory=dict)
 
@@ -95,6 +97,7 @@ class AdapterStatus:
         return {
             "name": self.name,
             "available": self.available,
+            "maturity": self.maturity,
             "capabilities": list(self.capabilities),
             "actions": [action.to_dict() for action in self.actions],
             "reason": self.reason,

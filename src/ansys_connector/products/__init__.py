@@ -3,6 +3,7 @@
 from .base import (
     ActionDefinition,
     ActionExecutionContext,
+    AdapterMaturity,
     ActionParameter,
     ActionProfile,
     Adapter,
@@ -17,6 +18,7 @@ from .workbench import WorkbenchAdapter
 __all__ = [
     "ActionDefinition",
     "ActionExecutionContext",
+    "AdapterMaturity",
     "ActionParameter",
     "ActionProfile",
     "Adapter",

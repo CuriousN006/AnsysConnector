@@ -50,6 +50,12 @@ def validate_command_params(params: dict[str, Any], _: ActionExecutionContext) -
     path = params.get("path")
     if not isinstance(path, str) or not path.strip():
         raise AdapterError("Fluent command action requires a non-empty 'path'.")
+    args = params.get("args")
+    if args is not None and not isinstance(args, list):
+        raise AdapterError("Fluent command action 'args' must be a list when provided.")
+    kwargs = params.get("kwargs")
+    if kwargs is not None and not isinstance(kwargs, dict):
+        raise AdapterError("Fluent command action 'kwargs' must be an object when provided.")
     return params
 
 

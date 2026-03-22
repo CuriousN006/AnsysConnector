@@ -3,6 +3,7 @@
 from ansys_connector.products.base import (
     ActionDefinition,
     ActionExecutionContext,
+    AdapterMaturity,
     ActionParameter,
     ActionProfile,
     Adapter,
@@ -14,6 +15,7 @@ from ansys_connector.products.base import (
 __all__ = [
     "ActionDefinition",
     "ActionExecutionContext",
+    "AdapterMaturity",
     "ActionParameter",
     "ActionProfile",
     "Adapter",

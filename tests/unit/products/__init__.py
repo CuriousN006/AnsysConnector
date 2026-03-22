@@ -1,0 +1,1 @@
+"""Product adapter unit tests."""

@@ -22,10 +22,12 @@ class WorkbenchAdapter(Adapter):
             name=self.name,
             available=available,
             actions=self.actions,
+            maturity="experimental",
             reason=reason,
             details={
                 "workbench_exe": str(env.workbench_exe) if env.workbench_exe else None,
                 "module_version": module_state,
+                "note": "Workbench is wired for basic automation, but its typed safe surface is still minimal.",
             },
         )
 

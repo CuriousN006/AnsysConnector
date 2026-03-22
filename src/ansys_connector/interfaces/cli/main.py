@@ -95,12 +95,13 @@ def _format_adapter_statuses_human(statuses: list[dict[str, Any]]) -> str:
     lines = []
     for item in statuses:
         state = "available" if item["available"] else "unavailable"
+        maturity = item.get("maturity", "stable")
         safe_actions = [action["name"] for action in item["actions"] if action["profile"] == "safe"]
         expert_actions = [action["name"] for action in item["actions"] if action["profile"] == "expert"]
         sections = [f"safe: {', '.join(safe_actions) if safe_actions else '-'}"]
         if expert_actions:
             sections.append(f"expert: {', '.join(expert_actions)}")
-        line = f"{item['name']}: {state} [{' | '.join(sections)}]"
+        line = f"{item['name']}: {state} ({maturity}) [{' | '.join(sections)}]"
         if item["reason"]:
             line += f" - {item['reason']}"
         elif item["details"].get("note"):

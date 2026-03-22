@@ -83,6 +83,19 @@ class PolicyTests(unittest.TestCase):
         with self.assertRaisesRegex(Exception, "positive integer"):
             session.execute("iterate", {"iter_count": 0})
 
+    def test_fluent_command_rejects_implicit_top_level_kwargs(self) -> None:
+        raw = RecordingSession()
+        session = PolicyEnforcedSession(
+            adapter=FluentAdapter(),
+            session=raw,
+            env=build_env(),
+            profile="expert",
+            allowed_roots=(Path.cwd().resolve(strict=False),),
+        )
+
+        with self.assertRaisesRegex(Exception, "Unsupported parameters"):
+            session.execute("command", {"path": "file.start_transcript", "file_name": "outputs/test.trn"})
+
 
 if __name__ == "__main__":
     unittest.main()

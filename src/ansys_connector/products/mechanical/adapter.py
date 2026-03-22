@@ -22,6 +22,7 @@ class MechanicalAdapter(Adapter):
             name=self.name,
             available=available,
             actions=self.actions,
+            maturity="experimental",
             reason=reason,
             details={
                 "mechanical_exe": str(env.mechanical_exe) if env.mechanical_exe else None,

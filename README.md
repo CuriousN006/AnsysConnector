@@ -85,6 +85,7 @@ The Fluent adapter exposes typed safe actions plus raw expert actions:
 - Expert: `scheme`, `tui`, `command`
 
 Use Python-style settings paths such as `setup.general`, `solution.initialization`, or `file.start_transcript`.
+`fluent command` now accepts only explicit `path`, `args`, and `kwargs`; implicit top-level kwargs are rejected.
 
 Workbench and Mechanical intentionally keep a smaller safe surface in this milestone:
 
@@ -93,10 +94,16 @@ Workbench and Mechanical intentionally keep a smaller safe surface in this miles
 - Mechanical safe: `version`
 - Mechanical expert: `python`
 
+Current adapter maturity:
+
+- Fluent: `beta`
+- Workbench: `experimental`
+- Mechanical: `experimental`
+
 ## CLI structure
 
 - `ansysctl env`: report Python and local Ansys installation details
-- `ansysctl adapters`: list which adapters are currently usable and which actions are safe vs expert
+- `ansysctl adapters`: list which adapters are currently usable, their maturity, and which actions are safe vs expert
 - `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--workspace`, `--allowed-root`, `--option`, and `--param`
 - `ansysctl run-plan <file>`: execute a YAML or JSON workflow plan
 
@@ -199,5 +206,6 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 
 - These tools assume the local Ansys Student installation exposes `AWP_ROOT261`.
 - Fluent is the strongest first target because PyFluent supports both high-level settings and raw TUI/Scheme execution.
+- `ansysctl adapters` reports maturity so external agents can treat Workbench and Mechanical as more experimental surfaces.
 - Fluent launch is serialized inside managed session handling, but separate `ansysctl` processes can still race if they start Fluent at the same time.
 - Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.

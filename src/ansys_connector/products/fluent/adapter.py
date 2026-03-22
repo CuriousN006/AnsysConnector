@@ -27,10 +27,15 @@ class FluentAdapter(Adapter):
             name=self.name,
             available=available,
             actions=self.actions,
+            maturity="beta",
             reason=reason,
             details={
                 "fluent_exe": str(env.fluent_exe) if env.fluent_exe else None,
                 "module_version": module_state,
+                "note": (
+                    "Fluent is the most complete adapter today, but raw expert actions remain "
+                    "advanced surfaces intended for supervised use."
+                ),
             },
         )
 

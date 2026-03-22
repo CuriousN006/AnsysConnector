@@ -178,14 +178,11 @@ class FluentSession(AdapterSession):
                 raise AdapterError("'kwargs' must be an object when provided.")
             kwargs.update(nested_kwargs)
 
-        for key, value in params.items():
-            if key in {"path", "args", "kwargs"}:
-                continue
-            kwargs[key] = value
-
         result = command(*args, **kwargs)
         return {
             "path": getattr(command, "path", params["path"]),
+            "args": list(args),
+            "kwargs": dict(kwargs),
             "result": result,
         }
 

@@ -155,13 +155,12 @@ FLUENT_ACTIONS: tuple[ActionDefinition, ...] = (
     ActionDefinition(
         name="command",
         profile="expert",
-        description="Invoke a raw Fluent callable path with arbitrary kwargs.",
+        description="Invoke a raw Fluent callable path with explicit args/kwargs only.",
         parameters=(
             ActionParameter("path", kind="string", required=True, description="Callable Fluent settings path."),
             ActionParameter("args", kind="array", description="Positional arguments."),
             ActionParameter("kwargs", kind="object", description="Keyword arguments."),
         ),
-        allow_extra=True,
         validator=validate_command_params,
     ),
 )
