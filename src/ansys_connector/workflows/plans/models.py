@@ -31,6 +31,7 @@ class PlanAdapterConfig:
     """Per-adapter session settings used by plan execution."""
 
     profile: str = "safe"
+    workspace: str | None = None
     options: dict[str, Any] = field(default_factory=dict)
     allowed_roots: tuple[str, ...] = ()
 
@@ -39,6 +40,8 @@ class PlanAdapterConfig:
             "profile": self.profile,
             "options": dict(self.options),
         }
+        if self.workspace is not None:
+            payload["workspace"] = self.workspace
         if self.allowed_roots:
             payload["allowed_roots"] = list(self.allowed_roots)
         return payload

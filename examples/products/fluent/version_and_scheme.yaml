@@ -3,6 +3,7 @@ name: fluent-version-and-scheme
 adapters:
   fluent:
     profile: expert
+    workspace: runs/fluent-version-and-scheme
     options:
       product_version: 261
       mode: solver

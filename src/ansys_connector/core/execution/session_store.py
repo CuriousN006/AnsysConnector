@@ -9,7 +9,7 @@ from ansys_connector.core.environment import EnvironmentInfo, detect_environment
 from ansys_connector.core.policy import normalize_allowed_roots, normalize_profile
 from ansys_connector.core.registry import AdapterRegistry, build_registry
 
-from .managed_session import ManagedSession, open_managed_session
+from .managed_session import ManagedSession, open_managed_session, resolve_workspace
 
 
 DEFAULT_SESSION_TTL_SECONDS = 30 * 60
@@ -54,6 +54,8 @@ class SessionStore:
         now = datetime.now(timezone.utc)
         with self._lock:
             for session_id, managed in list(self._sessions.items()):
+                if managed.status == "busy":
+                    continue
                 if managed.expires_at <= now:
                     managed.status = "expired"
                     expired.append(self._sessions.pop(session_id))
@@ -92,13 +94,15 @@ class SessionStore:
         *,
         profile: str | None = "safe",
         allowed_roots: list[str] | tuple[str, ...] | str | None = None,
+        workspace: str | None = None,
     ) -> dict[str, Any]:
         self._cleanup_expired()
         env = self._detect_environment(version)
         registry = self._registry_factory()
         adapter = registry.get(adapter_name)
         normalized_profile = normalize_profile(profile)
-        normalized_roots = normalize_allowed_roots(allowed_roots)
+        workspace_path = resolve_workspace(workspace)
+        normalized_roots = normalize_allowed_roots(allowed_roots, cwd=workspace_path)
         session_options = dict(options or {})
 
         self._reserve_capacity(adapter_name)
@@ -109,6 +113,7 @@ class SessionStore:
                 options=session_options,
                 profile=normalized_profile,
                 allowed_roots=[str(root) for root in normalized_roots],
+                workspace=workspace_path,
             )
         finally:
             self._release_capacity(adapter_name)
@@ -118,6 +123,7 @@ class SessionStore:
             adapter=adapter_name,
             version=env.version,
             profile=normalized_profile,
+            workspace=workspace_path,
             options=session_options,
             allowed_roots=normalized_roots,
             env=env,

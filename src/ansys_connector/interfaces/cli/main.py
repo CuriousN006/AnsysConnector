@@ -59,6 +59,10 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Execution profile. Safe is default; expert unlocks raw script and TUI actions.",
     )
     call_parser.add_argument("--option", action="append", help="Adapter session option in KEY=VALUE format")
+    call_parser.add_argument(
+        "--workspace",
+        help="Explicit per-session workspace. Defaults to the current directory when omitted.",
+    )
     call_parser.add_argument("--allowed-root", action="append", help="Additional allowed root for safe file actions.")
     call_parser.add_argument("--param", action="append", help="Action parameter in KEY=VALUE format")
     call_parser.add_argument("--json", action="store_true", help="Emit JSON")
@@ -138,6 +142,7 @@ def main(argv: list[str] | None = None) -> int:
                 adapter_options=_parse_key_value(args.option),
                 profile=args.profile,
                 allowed_roots=args.allowed_root,
+                workspace=args.workspace,
             )
             _print_json(result)
             return 0

@@ -11,7 +11,7 @@ from .models import ExecutionPlan, PlanAdapterConfig, PlanStep
 
 _ALLOWED_TOP_LEVEL_FIELDS = {"name", "adapters", "steps", "continue_on_error", "metadata"}
 _ALLOWED_STEP_FIELDS = {"adapter", "action", "params", "label", "continue_on_error"}
-_ADAPTER_META_FIELDS = {"profile", "allowed_roots", "options"}
+_ADAPTER_META_FIELDS = {"profile", "workspace", "allowed_roots", "options"}
 
 
 def _load_serialized(path: Path) -> dict[str, Any]:
@@ -37,6 +37,14 @@ def _load_adapter_config(name: str, payload: Any) -> PlanAdapterConfig:
         raise ValueError(f"Adapter config '{name}' must be an object.")
 
     profile = str(payload.get("profile", "safe"))
+    raw_workspace = payload.get("workspace")
+    if raw_workspace is None:
+        workspace: str | None = None
+    elif isinstance(raw_workspace, (str, Path)):
+        workspace = str(raw_workspace)
+    else:
+        raise ValueError(f"Adapter '{name}' has a non-string 'workspace' field.")
+
     raw_allowed_roots = payload.get("allowed_roots", [])
     if raw_allowed_roots in (None, []):
         allowed_roots: tuple[str, ...] = ()
@@ -51,10 +59,15 @@ def _load_adapter_config(name: str, payload: Any) -> PlanAdapterConfig:
         if not isinstance(options, dict):
             raise ValueError(f"Adapter '{name}' has a non-object 'options' field.")
     else:
-        options = {key: value for key, value in payload.items() if key not in {"profile", "allowed_roots"}}
+        options = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"profile", "workspace", "allowed_roots"}
+        }
 
     return PlanAdapterConfig(
         profile=profile,
+        workspace=workspace,
         options=dict(options),
         allowed_roots=allowed_roots,
     )

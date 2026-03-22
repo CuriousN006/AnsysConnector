@@ -3,6 +3,7 @@ name: workbench-version-check
 adapters:
   workbench:
     profile: safe
+    workspace: runs/workbench-version-check
     options:
       show_gui: false
 

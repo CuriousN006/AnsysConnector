@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from ansys_connector.core.environment import EnvironmentInfo
@@ -8,7 +9,7 @@ from ansys_connector.core.policy import prepare_action
 from ansys_connector.core.registry import AdapterRegistry
 from ansys_connector.workflows.plans.models import ExecutionPlan, PlanAdapterConfig, PlanStep
 
-from .managed_session import open_managed_session
+from .managed_session import open_managed_session, resolve_workspace
 from ansys_connector.products.base import AdapterSession
 
 
@@ -63,8 +64,10 @@ class WorkflowExecutor:
         adapter_options: dict[str, Any] | None = None,
         profile: str | None = "safe",
         allowed_roots: list[str] | tuple[str, ...] | None = None,
+        workspace: str | Path | None = None,
     ) -> Any:
         adapter = self._registry.get(adapter_name)
+        workspace_path = resolve_workspace(workspace, create=False) if workspace is not None else None
         validated = prepare_action(
             adapter=adapter,
             env=self._env,
@@ -72,6 +75,7 @@ class WorkflowExecutor:
             params=params,
             profile=profile,
             allowed_roots=allowed_roots,
+            cwd=workspace_path,
         )
         session = open_managed_session(
             adapter=adapter,
@@ -79,6 +83,7 @@ class WorkflowExecutor:
             options=adapter_options or {},
             profile=profile,
             allowed_roots=allowed_roots,
+            workspace=workspace_path,
         )
         try:
             return session.execute(action, validated)
@@ -121,6 +126,7 @@ class WorkflowExecutor:
         try:
             adapter = self._registry.get(step.adapter)
             config = plan.adapters.get(step.adapter, PlanAdapterConfig())
+            workspace_path = resolve_workspace(config.workspace, create=False) if config.workspace is not None else None
             validated = prepare_action(
                 adapter=adapter,
                 env=self._env,
@@ -128,6 +134,7 @@ class WorkflowExecutor:
                 params=step.params,
                 profile=config.profile,
                 allowed_roots=list(config.allowed_roots),
+                cwd=workspace_path,
             )
             if step.adapter not in sessions:
                 sessions[step.adapter] = open_managed_session(
@@ -136,6 +143,7 @@ class WorkflowExecutor:
                     options=dict(config.options),
                     profile=config.profile,
                     allowed_roots=list(config.allowed_roots),
+                    workspace=workspace_path,
                 )
             data = sessions[step.adapter].execute(step.action, validated)
             return StepExecutionResult(

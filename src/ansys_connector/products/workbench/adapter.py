@@ -29,14 +29,14 @@ class WorkbenchAdapter(Adapter):
             },
         )
 
-    def open_session(self, env: EnvironmentInfo, options: dict[str, Any]) -> AdapterSession:
+    def open_session(self, env: EnvironmentInfo, options: dict[str, Any], *, workspace: Path) -> AdapterSession:
         status = self.inspect(env)
         if not status.available:
             raise AdapterError(status.reason or "Workbench is unavailable.")
 
         from ansys.workbench.core import launch_workbench
 
-        workdir = Path.cwd() / "outputs" / "workbench"
+        workdir = workspace / "outputs" / "workbench"
         workdir.mkdir(parents=True, exist_ok=True)
 
         launch_options = {

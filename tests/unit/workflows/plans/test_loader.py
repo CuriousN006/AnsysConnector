@@ -37,6 +37,7 @@ class PlanLoaderTests(unittest.TestCase):
                         "adapters:",
                         "  fluent:",
                         "    profile: expert",
+                        "    workspace: runs/fluent-session",
                         "    allowed_roots:",
                         "      - outputs",
                         "    options:",
@@ -52,6 +53,7 @@ class PlanLoaderTests(unittest.TestCase):
             plan = load_plan(plan_path)
 
             self.assertEqual(plan.adapters["fluent"].profile, "expert")
+            self.assertEqual(plan.adapters["fluent"].workspace, "runs/fluent-session")
             self.assertEqual(plan.adapters["fluent"].options["processor_count"], 2)
             self.assertEqual(plan.adapters["fluent"].allowed_roots, ("outputs",))
 

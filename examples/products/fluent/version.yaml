@@ -3,6 +3,7 @@ name: fluent-version-check
 adapters:
   fluent:
     profile: safe
+    workspace: runs/fluent-version-check
     options:
       product_version: 261
       mode: solver

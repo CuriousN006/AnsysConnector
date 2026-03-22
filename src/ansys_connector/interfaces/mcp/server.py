@@ -67,8 +67,9 @@ def open_session(
     profile: str = "safe",
     options: dict[str, Any] | None = None,
     allowed_roots: list[str] | None = None,
+    workspace: str | None = None,
 ) -> dict[str, Any]:
-    return STORE.open(adapter, version, options, profile=profile, allowed_roots=allowed_roots)
+    return STORE.open(adapter, version, options, profile=profile, allowed_roots=allowed_roots, workspace=workspace)
 
 
 @mcp.tool(description="List open persistent adapter sessions.")
@@ -99,6 +100,7 @@ def call_once(
     options: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
     allowed_roots: list[str] | None = None,
+    workspace: str | None = None,
 ) -> dict[str, Any]:
     _, _, executor = _build_executor(version)
     return {
@@ -112,6 +114,7 @@ def call_once(
             adapter_options=options,
             profile=profile,
             allowed_roots=allowed_roots,
+            workspace=workspace,
         ),
     }
 

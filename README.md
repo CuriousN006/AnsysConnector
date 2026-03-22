@@ -56,6 +56,7 @@ ansysctl call workbench version
 ansysctl call fluent describe --param path=setup.general
 ansysctl call fluent scheme --profile expert --param mode=string_eval --param command="(cx-version)"
 ansysctl call fluent start_transcript --param file_name="outputs/fluent.txt"
+ansysctl call fluent version --workspace .\runs\fluent-session-01
 ```
 
 ## Profiles and action policy
@@ -96,15 +97,16 @@ Workbench and Mechanical intentionally keep a smaller safe surface in this miles
 
 - `ansysctl env`: report Python and local Ansys installation details
 - `ansysctl adapters`: list which adapters are currently usable and which actions are safe vs expert
-- `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--allowed-root`, `--option`, and `--param`
+- `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--workspace`, `--allowed-root`, `--option`, and `--param`
 - `ansysctl run-plan <file>`: execute a YAML or JSON workflow plan
 
-Plan adapter config supports `profile`, `allowed_roots`, and `options`:
+Plan adapter config supports `profile`, `workspace`, `allowed_roots`, and `options`:
 
 ```yaml
 adapters:
   fluent:
     profile: expert
+    workspace: runs/fluent-session-01
     allowed_roots:
       - outputs
     options:
@@ -143,6 +145,7 @@ The MCP server exposes persistent session tools:
 Managed session metadata includes:
 
 - `profile`
+- `workspace`
 - `allowed_roots`
 - `status`
 - `created_at`

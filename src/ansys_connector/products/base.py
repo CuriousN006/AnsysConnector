@@ -143,5 +143,5 @@ class Adapter(ABC):
         """Report whether the adapter can run in the current environment."""
 
     @abstractmethod
-    def open_session(self, env: EnvironmentInfo, options: dict[str, Any]) -> AdapterSession:
+    def open_session(self, env: EnvironmentInfo, options: dict[str, Any], *, workspace: Path) -> AdapterSession:
         """Open a session for this adapter."""

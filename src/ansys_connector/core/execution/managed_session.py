@@ -11,7 +11,18 @@ from ansys_connector.core.policy import normalize_allowed_roots, normalize_profi
 from ansys_connector.products.base import ActionProfile, Adapter, AdapterSession
 
 
-_FLUENT_LAUNCH_LOCK = threading.Lock()
+def resolve_workspace(workspace: str | Path | None = None, *, create: bool = True) -> Path:
+    if workspace is None:
+        base = Path.cwd()
+    else:
+        base = Path(workspace).expanduser()
+        if not base.is_absolute():
+            base = Path.cwd() / base
+    resolved = base.resolve(strict=False)
+    if create:
+        resolved.mkdir(parents=True, exist_ok=True)
+        (resolved / "outputs").mkdir(parents=True, exist_ok=True)
+    return resolved
 
 
 class PolicyEnforcedSession(AdapterSession):
@@ -42,6 +53,10 @@ class PolicyEnforcedSession(AdapterSession):
     def allowed_roots(self) -> tuple[Path, ...]:
         return self._allowed_roots
 
+    @property
+    def workspace(self) -> Path:
+        return self._cwd
+
     def execute(self, action: str, params: dict[str, Any]) -> Any:
         validated = prepare_action(
             adapter=self._adapter,
@@ -65,22 +80,18 @@ def open_managed_session(
     options: dict[str, Any] | None = None,
     profile: str | None = None,
     allowed_roots: list[str] | tuple[str, ...] | str | Path | None = None,
-    cwd: Path | None = None,
+    workspace: str | Path | None = None,
 ) -> PolicyEnforcedSession:
-    workspace = (cwd or Path.cwd()).resolve(strict=False)
+    workspace_path = resolve_workspace(workspace)
     session_options = dict(options or {})
-    if adapter.name == "fluent":
-        with _FLUENT_LAUNCH_LOCK:
-            raw_session = adapter.open_session(env, session_options)
-    else:
-        raw_session = adapter.open_session(env, session_options)
+    raw_session = adapter.open_session(env, session_options, workspace=workspace_path)
     return PolicyEnforcedSession(
         adapter=adapter,
         session=raw_session,
         env=env,
         profile=normalize_profile(profile),
-        allowed_roots=normalize_allowed_roots(allowed_roots, cwd=workspace),
-        cwd=workspace,
+        allowed_roots=normalize_allowed_roots(allowed_roots, cwd=workspace_path),
+        cwd=workspace_path,
     )
 
 
@@ -90,6 +101,7 @@ class ManagedSession:
     adapter: str
     version: str | None
     profile: str
+    workspace: Path
     options: dict[str, Any]
     allowed_roots: tuple[Path, ...]
     env: EnvironmentInfo
@@ -108,6 +120,7 @@ class ManagedSession:
         adapter: str,
         version: str | None,
         profile: str,
+        workspace: Path,
         options: dict[str, Any],
         allowed_roots: tuple[Path, ...],
         env: EnvironmentInfo,
@@ -120,6 +133,7 @@ class ManagedSession:
             adapter=adapter,
             version=version,
             profile=profile,
+            workspace=workspace,
             options=options,
             allowed_roots=allowed_roots,
             env=env,
@@ -140,6 +154,7 @@ class ManagedSession:
             "adapter": self.adapter,
             "version": self.version,
             "profile": self.profile,
+            "workspace": str(self.workspace),
             "options": dict(self.options),
             "allowed_roots": [str(root) for root in self.allowed_roots],
             "status": self.status,

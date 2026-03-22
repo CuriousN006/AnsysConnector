@@ -66,13 +66,15 @@ class FakeAdapter(Adapter):
 
     def __init__(self) -> None:
         self.opened_sessions: list[RecordingSession] = []
+        self.opened_workspaces: list[Path] = []
 
     def inspect(self, env: EnvironmentInfo) -> AdapterStatus:
         return AdapterStatus(name=self.name, available=True, actions=self.actions)
 
-    def open_session(self, env: EnvironmentInfo, options: dict) -> AdapterSession:
+    def open_session(self, env: EnvironmentInfo, options: dict, *, workspace: Path) -> AdapterSession:
         session = RecordingSession()
         if options.get("block_on_execute"):
             session.block_on_execute = True
         self.opened_sessions.append(session)
+        self.opened_workspaces.append(workspace)
         return session

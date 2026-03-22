@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 from ansys_connector.core.environment import EnvironmentInfo
@@ -32,7 +33,7 @@ class MechanicalAdapter(Adapter):
             },
         )
 
-    def open_session(self, env: EnvironmentInfo, options: dict[str, Any]) -> AdapterSession:
+    def open_session(self, env: EnvironmentInfo, options: dict[str, Any], *, workspace: Path) -> AdapterSession:
         status = self.inspect(env)
         if not status.available:
             raise AdapterError(status.reason or "Mechanical is unavailable.")
