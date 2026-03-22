@@ -1,7 +1,8 @@
 name: fluent-version-and-scheme
 
-adapters:
+sessions:
   fluent:
+    adapter: fluent
     profile: expert
     workspace: runs/fluent-version-and-scheme
     options:
@@ -16,9 +17,9 @@ adapters:
       cleanup_on_exit: true
 
 steps:
-  - adapter: fluent
+  - session: fluent
     action: version
-  - adapter: fluent
+  - session: fluent
     action: scheme
     params:
       mode: string_eval

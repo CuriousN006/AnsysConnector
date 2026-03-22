@@ -107,11 +107,12 @@ Current adapter maturity:
 - `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--workspace`, `--allowed-root`, `--option`, and `--param`
 - `ansysctl run-plan <file>`: execute a YAML or JSON workflow plan
 
-Plan adapter config supports `profile`, `workspace`, `allowed_roots`, and `options`:
+Plan session config supports `adapter`, `profile`, `workspace`, `allowed_roots`, and `options`:
 
 ```yaml
-adapters:
-  fluent:
+sessions:
+  fluent_main:
+    adapter: fluent
     profile: expert
     workspace: runs/fluent-session-01
     allowed_roots:
@@ -123,11 +124,13 @@ adapters:
 
 Step objects are strict and only accept:
 
-- `adapter`
+- `session`
 - `action`
 - `params`
 - `label`
 - `continue_on_error`
+
+Legacy `adapters` and step-level `adapter` keys are still accepted for backward compatibility, but new plans should prefer `sessions` and `session`.
 
 ## MCP server
 
@@ -207,5 +210,6 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 - These tools assume the local Ansys Student installation exposes `AWP_ROOT261`.
 - Fluent is the strongest first target because PyFluent supports both high-level settings and raw TUI/Scheme execution.
 - `ansysctl adapters` reports maturity so external agents can treat Workbench and Mechanical as more experimental surfaces.
+- Declarative plans now support named session handles, so one workflow can keep multiple sessions for the same product alive.
 - Fluent launch is serialized inside managed session handling, but separate `ansysctl` processes can still race if they start Fluent at the same time.
 - Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.

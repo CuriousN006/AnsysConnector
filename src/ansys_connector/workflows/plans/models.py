@@ -8,7 +8,7 @@ from typing import Any
 class PlanStep:
     """Single adapter action."""
 
-    adapter: str
+    session: str
     action: str
     params: dict[str, Any] = field(default_factory=dict)
     label: str | None = None
@@ -16,7 +16,7 @@ class PlanStep:
 
     def to_dict(self) -> dict[str, Any]:
         payload = {
-            "adapter": self.adapter,
+            "session": self.session,
             "action": self.action,
             "params": dict(self.params),
             "continue_on_error": self.continue_on_error,
@@ -27,9 +27,10 @@ class PlanStep:
 
 
 @dataclass(frozen=True)
-class PlanAdapterConfig:
-    """Per-adapter session settings used by plan execution."""
+class PlanSessionConfig:
+    """Per-session settings used by plan execution."""
 
+    adapter: str
     profile: str = "safe"
     workspace: str | None = None
     options: dict[str, Any] = field(default_factory=dict)
@@ -37,6 +38,7 @@ class PlanAdapterConfig:
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
+            "adapter": self.adapter,
             "profile": self.profile,
             "options": dict(self.options),
         }
@@ -47,20 +49,28 @@ class PlanAdapterConfig:
         return payload
 
 
+PlanAdapterConfig = PlanSessionConfig
+
+
 @dataclass(frozen=True)
 class ExecutionPlan:
     """Declarative multi-step workflow."""
 
     name: str
-    adapters: dict[str, PlanAdapterConfig]
+    sessions: dict[str, PlanSessionConfig]
     steps: list[PlanStep]
     continue_on_error: bool = False
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def adapters(self) -> dict[str, PlanSessionConfig]:
+        """Compatibility alias for older callers."""
+        return self.sessions
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
-            "adapters": {name: config.to_dict() for name, config in self.adapters.items()},
+            "sessions": {name: config.to_dict() for name, config in self.sessions.items()},
             "continue_on_error": self.continue_on_error,
             "metadata": self.metadata,
             "steps": [step.to_dict() for step in self.steps],

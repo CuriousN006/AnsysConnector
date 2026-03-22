@@ -16,7 +16,7 @@ class PlanLoaderTests(unittest.TestCase):
                     [
                         "name: invalid-plan",
                         "steps:",
-                        "  - adapter: fluent",
+                        "  - session: fluent",
                         "    action: version",
                         "    command: unexpected",
                     ]
@@ -27,21 +27,49 @@ class PlanLoaderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported fields"):
                 load_plan(plan_path)
 
-    def test_plan_supports_profile_and_options(self) -> None:
+    def test_plan_supports_named_sessions(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             plan_path = Path(temp_dir) / "plan.yaml"
             plan_path.write_text(
                 "\n".join(
                     [
                         "name: fluent-safe-plan",
-                        "adapters:",
-                        "  fluent:",
+                        "sessions:",
+                        "  source:",
+                        "    adapter: fluent",
                         "    profile: expert",
                         "    workspace: runs/fluent-session",
                         "    allowed_roots:",
                         "      - outputs",
                         "    options:",
                         "      processor_count: 2",
+                        "steps:",
+                        "  - session: source",
+                        "    action: version",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            plan = load_plan(plan_path)
+
+            self.assertEqual(plan.sessions["source"].adapter, "fluent")
+            self.assertEqual(plan.sessions["source"].profile, "expert")
+            self.assertEqual(plan.sessions["source"].workspace, "runs/fluent-session")
+            self.assertEqual(plan.sessions["source"].options["processor_count"], 2)
+            self.assertEqual(plan.sessions["source"].allowed_roots, ("outputs",))
+            self.assertEqual(plan.steps[0].session, "source")
+
+    def test_legacy_adapters_format_still_loads(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan_path = Path(temp_dir) / "plan.yaml"
+            plan_path.write_text(
+                "\n".join(
+                    [
+                        "name: legacy-plan",
+                        "adapters:",
+                        "  fluent:",
+                        "    profile: safe",
                         "steps:",
                         "  - adapter: fluent",
                         "    action: version",
@@ -52,10 +80,8 @@ class PlanLoaderTests(unittest.TestCase):
 
             plan = load_plan(plan_path)
 
-            self.assertEqual(plan.adapters["fluent"].profile, "expert")
-            self.assertEqual(plan.adapters["fluent"].workspace, "runs/fluent-session")
-            self.assertEqual(plan.adapters["fluent"].options["processor_count"], 2)
-            self.assertEqual(plan.adapters["fluent"].allowed_roots, ("outputs",))
+            self.assertEqual(plan.sessions["fluent"].adapter, "fluent")
+            self.assertEqual(plan.steps[0].session, "fluent")
 
 
 if __name__ == "__main__":

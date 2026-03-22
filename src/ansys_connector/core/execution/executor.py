@@ -7,7 +7,7 @@ from typing import Any
 from ansys_connector.core.environment import EnvironmentInfo
 from ansys_connector.core.policy import prepare_action
 from ansys_connector.core.registry import AdapterRegistry
-from ansys_connector.workflows.plans.models import ExecutionPlan, PlanAdapterConfig, PlanStep
+from ansys_connector.workflows.plans.models import ExecutionPlan, PlanSessionConfig, PlanStep
 
 from .managed_session import open_managed_session, resolve_workspace
 from ansys_connector.products.base import AdapterSession
@@ -16,6 +16,7 @@ from ansys_connector.products.base import AdapterSession
 @dataclass(frozen=True)
 class StepExecutionResult:
     index: int
+    session: str
     adapter: str
     action: str
     ok: bool
@@ -26,6 +27,7 @@ class StepExecutionResult:
     def to_dict(self) -> dict[str, Any]:
         return {
             "index": self.index,
+            "session": self.session,
             "adapter": self.adapter,
             "action": self.action,
             "ok": self.ok,
@@ -124,8 +126,8 @@ class WorkflowExecutor:
         sessions: dict[str, AdapterSession],
     ) -> StepExecutionResult:
         try:
-            adapter = self._registry.get(step.adapter)
-            config = plan.adapters.get(step.adapter, PlanAdapterConfig())
+            config = plan.sessions.get(step.session, PlanSessionConfig(adapter=step.session))
+            adapter = self._registry.get(config.adapter)
             workspace_path = resolve_workspace(config.workspace, create=False) if config.workspace is not None else None
             validated = prepare_action(
                 adapter=adapter,
@@ -136,8 +138,8 @@ class WorkflowExecutor:
                 allowed_roots=list(config.allowed_roots),
                 cwd=workspace_path,
             )
-            if step.adapter not in sessions:
-                sessions[step.adapter] = open_managed_session(
+            if step.session not in sessions:
+                sessions[step.session] = open_managed_session(
                     adapter=adapter,
                     env=self._env,
                     options=dict(config.options),
@@ -145,10 +147,11 @@ class WorkflowExecutor:
                     allowed_roots=list(config.allowed_roots),
                     workspace=workspace_path,
                 )
-            data = sessions[step.adapter].execute(step.action, validated)
+            data = sessions[step.session].execute(step.action, validated)
             return StepExecutionResult(
                 index=index,
-                adapter=step.adapter,
+                session=step.session,
+                adapter=config.adapter,
                 action=step.action,
                 ok=True,
                 label=step.label,
@@ -157,7 +160,8 @@ class WorkflowExecutor:
         except Exception as exc:  # pragma: no cover - runtime product errors
             return StepExecutionResult(
                 index=index,
-                adapter=step.adapter,
+                session=step.session,
+                adapter=config.adapter if "config" in locals() else step.session,
                 action=step.action,
                 ok=False,
                 label=step.label,

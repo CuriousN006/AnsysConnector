@@ -1,12 +1,13 @@
 name: workbench-version-check
 
-adapters:
+sessions:
   workbench:
+    adapter: workbench
     profile: safe
     workspace: runs/workbench-version-check
     options:
       show_gui: false
 
 steps:
-  - adapter: workbench
+  - session: workbench
     action: version
