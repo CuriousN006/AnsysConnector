@@ -17,8 +17,13 @@ class SessionStoreTests(unittest.TestCase):
     def setUp(self) -> None:
         self.fake_adapter = FakeAdapter()
         self.registry = AdapterRegistry(adapters={"fake": self.fake_adapter})
+        self._state_dir = tempfile.TemporaryDirectory()
+
+    def tearDown(self) -> None:
+        self._state_dir.cleanup()
 
     def build_store(self, **kwargs) -> SessionStore:
+        kwargs.setdefault("state_dir", self._state_dir.name)
         return SessionStore(
             detect_environment_fn=lambda version=None: build_env(),
             registry_factory=lambda: self.registry,
@@ -113,6 +118,45 @@ class SessionStoreTests(unittest.TestCase):
         self.assertEqual(str(self.fake_adapter.opened_workspaces[0]), resolved)
         self.assertIn(resolved, opened["allowed_roots"])
         self.assertIn(str((workspace / "outputs").resolve(strict=False)), opened["allowed_roots"])
+
+    def test_store_reload_marks_live_sessions_as_orphaned(self) -> None:
+        store = self.build_store(max_sessions=1, max_sessions_per_adapter=1)
+        opened = store.open("fake", None)
+
+        reloaded = self.build_store(max_sessions=1, max_sessions_per_adapter=1)
+        described = reloaded.describe(opened["session_id"])
+
+        self.assertEqual(described["status"], "orphaned")
+        self.assertFalse(described["live_session"])
+        self.assertFalse(described["can_execute"])
+
+        store.close_all()
+        reloaded.close_all()
+
+    def test_orphaned_sessions_do_not_consume_live_capacity(self) -> None:
+        store = self.build_store(max_sessions=1, max_sessions_per_adapter=1)
+        opened = store.open("fake", None)
+        reloaded = self.build_store(max_sessions=1, max_sessions_per_adapter=1)
+
+        replacement = reloaded.open("fake", None)
+        sessions = {session["session_id"]: session for session in reloaded.list()}
+
+        self.assertEqual(sessions[opened["session_id"]]["status"], "orphaned")
+        self.assertEqual(sessions[replacement["session_id"]]["status"], "open")
+
+        store.close_all()
+        reloaded.close_all()
+
+    def test_orphaned_session_cannot_execute(self) -> None:
+        store = self.build_store()
+        opened = store.open("fake", None)
+        reloaded = self.build_store()
+
+        with self.assertRaisesRegex(RuntimeError, "orphaned and cannot execute"):
+            reloaded.execute(opened["session_id"], "version")
+
+        store.close_all()
+        reloaded.close_all()
 
 
 if __name__ == "__main__":

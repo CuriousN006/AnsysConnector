@@ -105,7 +105,7 @@ class ManagedSession:
     options: dict[str, Any]
     allowed_roots: tuple[Path, ...]
     env: EnvironmentInfo
-    session: AdapterSession
+    session: AdapterSession | None
     created_at: datetime
     last_used_at: datetime
     expires_at: datetime
@@ -148,6 +148,14 @@ class ManagedSession:
         self.last_used_at = now
         self.expires_at = now + timedelta(seconds=ttl_seconds)
 
+    @property
+    def live_session(self) -> bool:
+        return self.session is not None
+
+    @property
+    def can_execute(self) -> bool:
+        return self.session is not None and self.status not in {"closing", "closed", "expired", "orphaned"}
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
@@ -158,6 +166,8 @@ class ManagedSession:
             "options": dict(self.options),
             "allowed_roots": [str(root) for root in self.allowed_roots],
             "status": self.status,
+            "live_session": self.live_session,
+            "can_execute": self.can_execute,
             "created_at": self.created_at.isoformat(),
             "last_used_at": self.last_used_at.isoformat(),
             "expires_at": self.expires_at.isoformat(),

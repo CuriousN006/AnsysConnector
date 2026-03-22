@@ -45,6 +45,7 @@ class FluentAdapter(Adapter):
             raise AdapterError(status.reason or "Fluent is unavailable.")
 
         import ansys.fluent.core as pyfluent
+        from ansys_connector.core.execution.broker import adapter_lock_file, exclusive_file_lock
 
         launch_options = {
             "product_version": int(env.version) if env.version else None,
@@ -63,15 +64,19 @@ class FluentAdapter(Adapter):
         last_error: Exception | None = None
         retry_count = int(launch_options.pop("retry_count", 3))
         retry_delay = float(launch_options.pop("retry_delay", 2.0))
+        launch_lock_timeout = float(
+            launch_options.pop("launch_lock_timeout", max(float(launch_options.get("start_timeout", 180)), 180.0) + 60.0)
+        )
         with _FLUENT_LAUNCH_LOCK:
-            for attempt in range(1, retry_count + 1):
-                try:
-                    session = pyfluent.launch_fluent(**launch_options)
-                    return FluentSession(session)
-                except Exception as exc:  # pragma: no cover - product startup timing
-                    last_error = exc
-                    if attempt == retry_count:
-                        break
-                    time.sleep(retry_delay)
+            with exclusive_file_lock(adapter_lock_file(self.name), timeout_seconds=launch_lock_timeout):
+                for attempt in range(1, retry_count + 1):
+                    try:
+                        session = pyfluent.launch_fluent(**launch_options)
+                        return FluentSession(session)
+                    except Exception as exc:  # pragma: no cover - product startup timing
+                        last_error = exc
+                        if attempt == retry_count:
+                            break
+                        time.sleep(retry_delay)
 
         raise AdapterError(f"Unable to launch Fluent after {retry_count} attempts: {last_error}")

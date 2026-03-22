@@ -18,7 +18,7 @@ mcp = FastMCP(
     "AnsysConnector",
     instructions=(
         "Use this server to inspect the local Ansys installation, discover safe and expert adapter actions, "
-        "open managed product sessions, execute adapter actions, and run declarative plans. "
+        "open managed product sessions, inspect session health, execute adapter actions, and run declarative plans. "
         "Safe sessions only permit typed actions. Expert sessions are required for raw script, Scheme, or TUI."
     ),
 )
@@ -75,6 +75,11 @@ def open_session(
 @mcp.tool(description="List open persistent adapter sessions.")
 def list_sessions() -> list[dict[str, Any]]:
     return STORE.list()
+
+
+@mcp.tool(description="Describe one persistent adapter session, including orphaned or non-executable state.")
+def get_session(session_id: str) -> dict[str, Any]:
+    return STORE.describe(session_id)
 
 
 @mcp.tool(description="Execute one action on an already-open managed session.")

@@ -147,6 +147,7 @@ The MCP server exposes persistent session tools:
 - `describe_actions`
 - `open_session`
 - `list_sessions`
+- `get_session`
 - `execute_session`
 - `close_session`
 - `call_once`
@@ -158,17 +159,24 @@ Managed session metadata includes:
 - `workspace`
 - `allowed_roots`
 - `status`
+- `live_session`
+- `can_execute`
 - `created_at`
 - `last_used_at`
 - `expires_at`
+
+Broker state is persisted locally so managed sessions can be rediscovered as `orphaned` after a process restart.
+By default the broker stores metadata under `%LOCALAPPDATA%\AnsysConnector\broker` on Windows
+or `~/.ansys_connector/broker` elsewhere. Set `ANSYS_CONNECTOR_STATE_DIR` to override it.
 
 Recommended agent flow for Fluent:
 
 1. `describe_actions(adapter="fluent", profile="safe")`
 2. `open_session(adapter="fluent", profile="safe")`
-3. `execute_session(..., action="describe", params={"path":"setup.general"})`
-4. `execute_session(..., action="set_state" | "start_transcript" | "iterate", ...)`
-5. `close_session(...)`
+3. `get_session(session_id=...)`
+4. `execute_session(..., action="describe", params={"path":"setup.general"})`
+5. `execute_session(..., action="set_state" | "start_transcript" | "iterate", ...)`
+6. `close_session(...)`
 
 Raw control requires an explicit expert session:
 
@@ -201,8 +209,8 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 - `ansysctl call fluent scheme` in safe mode: verified to fail fast before launch
 - `ansysctl call fluent scheme --profile expert`: verified
 - `ansysctl call workbench version`: verified
-- MCP-style persistent Fluent `describe_actions` and open/execute/close: verified
-- `python -m unittest discover -s tests -v`: passed before this tree refactor and will be re-run after the restructure
+- MCP-style persistent Workbench `open_session` / `get_session` / `close_session`: verified
+- `python -m unittest discover -s tests -v`: currently passing
 - `mechanical_smoke_test.py`: launch attempt starts licensing, but the local gRPC port does not come up yet
 
 ## Notes
@@ -211,5 +219,5 @@ python .\scripts\diagnostics\mechanical_smoke_test.py
 - Fluent is the strongest first target because PyFluent supports both high-level settings and raw TUI/Scheme execution.
 - `ansysctl adapters` reports maturity so external agents can treat Workbench and Mechanical as more experimental surfaces.
 - Declarative plans now support named session handles, so one workflow can keep multiple sessions for the same product alive.
-- Fluent launch is serialized inside managed session handling, but separate `ansysctl` processes can still race if they start Fluent at the same time.
+- Fluent launch is serialized with both in-process and broker file locks so separate `ansysctl` processes coordinate on startup.
 - Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.
