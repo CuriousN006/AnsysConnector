@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,9 @@ from ansys_connector.workflows.plans.models import ExecutionPlan, PlanSessionCon
 
 from .managed_session import open_managed_session, resolve_workspace
 from ansys_connector.products.base import AdapterSession
+
+
+_REFERENCE_PATTERN = re.compile(r"\$\{([^{}]+)\}")
 
 
 @dataclass(frozen=True)
@@ -98,14 +102,17 @@ class WorkflowExecutor:
     def run_plan(self, plan: ExecutionPlan) -> ExecutionSummary:
         sessions: dict[str, AdapterSession] = {}
         results: list[StepExecutionResult] = []
+        labeled_results: dict[str, StepExecutionResult] = {}
         keep_going = True
 
         try:
             for index, step in enumerate(plan.steps, start=1):
                 if not keep_going:
                     break
-                result = self._run_step(index, step, plan, sessions)
+                result = self._run_step(index, step, plan, sessions, labeled_results)
                 results.append(result)
+                if step.label:
+                    labeled_results[step.label] = result
                 if not result.ok and not (plan.continue_on_error or step.continue_on_error):
                     keep_going = False
         finally:
@@ -127,16 +134,22 @@ class WorkflowExecutor:
         step: PlanStep,
         plan: ExecutionPlan,
         sessions: dict[str, AdapterSession],
+        labeled_results: dict[str, StepExecutionResult],
     ) -> StepExecutionResult:
         try:
             config = plan.sessions.get(step.session, PlanSessionConfig(adapter=step.session))
             adapter = self._registry.get(config.adapter)
             workspace_path = resolve_workspace(config.workspace, create=False) if config.workspace is not None else None
+            resolved_params = self._resolve_plan_value(
+                step.params,
+                plan=plan,
+                labeled_results=labeled_results,
+            )
             validated = prepare_action(
                 adapter=adapter,
                 env=self._env,
                 action=step.action,
-                params=step.params,
+                params=resolved_params,
                 profile=config.profile,
                 raw_actions_enabled=bool(config.options.get("allow_raw_actions", False)),
                 allowed_roots=list(config.allowed_roots),
@@ -172,3 +185,88 @@ class WorkflowExecutor:
                 label=step.label,
                 error=str(exc),
             )
+
+    def _session_reference_map(self, plan: ExecutionPlan) -> dict[str, dict[str, Any]]:
+        session_map: dict[str, dict[str, Any]] = {}
+        for handle, config in plan.sessions.items():
+            workspace = resolve_workspace(config.workspace, create=False) if config.workspace is not None else resolve_workspace(None, create=False)
+            session_map[handle] = {
+                "name": handle,
+                "adapter": config.adapter,
+                "profile": config.profile,
+                "workspace": str(workspace),
+                "options": dict(config.options),
+                "allowed_roots": list(config.allowed_roots),
+            }
+        return session_map
+
+    def _resolve_reference(
+        self,
+        expression: str,
+        *,
+        plan: ExecutionPlan,
+        labeled_results: dict[str, StepExecutionResult],
+    ) -> Any:
+        parts = expression.split(".")
+        if len(parts) < 2:
+            raise ValueError(f"Invalid plan reference: {expression}")
+
+        namespace, key = parts[0], parts[1]
+        remainder = parts[2:]
+        if namespace == "steps":
+            if key not in labeled_results:
+                raise ValueError(f"Unknown plan step reference: {key}")
+            current: Any = labeled_results[key].to_dict()
+        elif namespace == "sessions":
+            session_map = self._session_reference_map(plan)
+            if key not in session_map:
+                raise ValueError(f"Unknown plan session reference: {key}")
+            current = session_map[key]
+        else:
+            raise ValueError(f"Unsupported plan reference root: {namespace}")
+
+        for segment in remainder:
+            if isinstance(current, dict):
+                if segment not in current:
+                    raise ValueError(f"Unknown field '{segment}' in plan reference: {expression}")
+                current = current[segment]
+                continue
+            if isinstance(current, list):
+                try:
+                    index = int(segment)
+                except ValueError as exc:
+                    raise ValueError(f"List reference segment must be an integer in: {expression}") from exc
+                try:
+                    current = current[index]
+                except IndexError as exc:
+                    raise ValueError(f"List reference index out of range in: {expression}") from exc
+                continue
+            raise ValueError(f"Cannot descend into '{segment}' for plan reference: {expression}")
+        return current
+
+    def _resolve_plan_value(
+        self,
+        value: Any,
+        *,
+        plan: ExecutionPlan,
+        labeled_results: dict[str, StepExecutionResult],
+    ) -> Any:
+        if isinstance(value, dict):
+            return {
+                key: self._resolve_plan_value(item, plan=plan, labeled_results=labeled_results)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [self._resolve_plan_value(item, plan=plan, labeled_results=labeled_results) for item in value]
+        if not isinstance(value, str):
+            return value
+
+        exact_match = _REFERENCE_PATTERN.fullmatch(value)
+        if exact_match:
+            return self._resolve_reference(exact_match.group(1), plan=plan, labeled_results=labeled_results)
+
+        def replace(match: re.Match[str]) -> str:
+            resolved = self._resolve_reference(match.group(1), plan=plan, labeled_results=labeled_results)
+            return str(resolved)
+
+        return _REFERENCE_PATTERN.sub(replace, value)

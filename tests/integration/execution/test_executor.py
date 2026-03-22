@@ -92,6 +92,44 @@ class WorkflowExecutorTests(unittest.TestCase):
         self.assertTrue(summary.ok)
         self.assertEqual(summary.results[0].data["action"], "danger")
 
+    def test_plan_can_reference_previous_step_data_and_session_workspace(self) -> None:
+        adapter = FakeAdapter()
+        registry = AdapterRegistry(adapters={"fake": adapter})
+        executor = WorkflowExecutor(build_env(), registry)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan = ExecutionPlan(
+                name="referenced-plan",
+                sessions={
+                    "writer": PlanSessionConfig(adapter="fake", workspace=temp_dir),
+                },
+                steps=[
+                    PlanStep(
+                        session="writer",
+                        action="write_case",
+                        label="write_base",
+                        params={"file_name": "${sessions.writer.workspace}/outputs/base.cas.h5"},
+                    ),
+                    PlanStep(
+                        session="writer",
+                        action="write_case",
+                        params={"file_name": "${steps.write_base.data.params.file_name}.bak"},
+                    ),
+                ],
+            )
+
+            summary = executor.run_plan(plan)
+
+            self.assertTrue(summary.ok)
+            self.assertEqual(
+                summary.results[0].data["params"]["file_name"],
+                str((Path(temp_dir) / "outputs" / "base.cas.h5").resolve(strict=False)),
+            )
+            self.assertEqual(
+                summary.results[1].data["params"]["file_name"],
+                str((Path(temp_dir) / "outputs" / "base.cas.h5").resolve(strict=False)) + ".bak",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -34,8 +34,8 @@ sessions:
 steps:
   - session: fluent_source
     action: version
-    label: Inspect source session
+    label: source_version
 
   - session: fluent_target
     action: version
-    label: Inspect target session
+    label: target_version

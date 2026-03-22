@@ -83,6 +83,47 @@ class PlanLoaderTests(unittest.TestCase):
             self.assertEqual(plan.sessions["fluent"].adapter, "fluent")
             self.assertEqual(plan.steps[0].session, "fluent")
 
+    def test_plan_rejects_duplicate_step_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan_path = Path(temp_dir) / "plan.yaml"
+            plan_path.write_text(
+                "\n".join(
+                    [
+                        "name: duplicate-labels",
+                        "steps:",
+                        "  - session: fluent",
+                        "    action: version",
+                        "    label: inspect",
+                        "  - session: fluent",
+                        "    action: version",
+                        "    label: inspect",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "duplicate step labels"):
+                load_plan(plan_path)
+
+    def test_plan_rejects_step_labels_with_dots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            plan_path = Path(temp_dir) / "plan.yaml"
+            plan_path.write_text(
+                "\n".join(
+                    [
+                        "name: dotted-label",
+                        "steps:",
+                        "  - session: fluent",
+                        "    action: version",
+                        "    label: step.one",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "may not contain"):
+                load_plan(plan_path)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -107,6 +107,8 @@ def _load_step(index: int, payload: Any) -> PlanStep:
     label = payload.get("label")
     if label is not None and not isinstance(label, str):
         raise ValueError(f"Step {index} has a non-string 'label' field.")
+    if isinstance(label, str) and "." in label:
+        raise ValueError(f"Step {index} label may not contain '.'.")
 
     return PlanStep(
         session=str(target_session),
@@ -152,6 +154,10 @@ def load_plan(path: str | Path) -> ExecutionPlan:
         for name, config in raw_session_map.items()
     }
     steps = [_load_step(index, item) for index, item in enumerate(raw_steps, start=1)]
+    labels = [step.label for step in steps if step.label]
+    duplicates = sorted({label for label in labels if labels.count(label) > 1})
+    if duplicates:
+        raise ValueError(f"Plan contains duplicate step labels: {', '.join(duplicates)}")
 
     return ExecutionPlan(
         name=str(payload.get("name", plan_path.stem)),

@@ -134,6 +134,33 @@ Step objects are strict and only accept:
 
 Legacy `adapters` and step-level `adapter` keys are still accepted for backward compatibility, but new plans should prefer `sessions` and `session`.
 
+Step params can also reference prior step results or session metadata:
+
+```yaml
+steps:
+  - session: fluent_main
+    action: start_transcript
+    label: transcript_start
+    params:
+      file_name: ${sessions.fluent_main.workspace}/outputs/session.log
+
+  - session: fluent_main
+    action: set_state
+    params:
+      path: file.start_transcript
+      state:
+        file_name: ${steps.transcript_start.data.params.file_name}
+```
+
+References support:
+
+- `${sessions.<handle>.workspace}`
+- `${sessions.<handle>.adapter}`
+- `${steps.<label>.data...}`
+- `${steps.<label>.ok}` / `${steps.<label>.error}`
+
+Step labels are now treated as reference keys, so they must be unique within a plan and may not contain `.`.
+
 ## MCP server
 
 Start the MCP server over stdio:
