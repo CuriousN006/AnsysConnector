@@ -1,89 +1,99 @@
 # AnsysConnector
 
-Generic local automation tooling for Ansys products.
+Ansys 제품을 로컬에서 자동화하기 위한 범용 브리지입니다.
 
-The project is now organized around four internal layers:
+AnsysConnector는 로컬 Ansys 설치 환경을 점검하고, 관리형 제품 세션을 열고,
+안전한 typed action을 실행하고, 파일 기반 Fluent workflow를 시작할 수 있는
+CLI와 MCP 서버를 제공합니다.
 
-- `src/ansys_connector/core/`: environment detection, policy, managed sessions, execution
-- `src/ansys_connector/interfaces/`: CLI and MCP entrypoints
-- `src/ansys_connector/products/`: product adapters and per-product session logic
-- `src/ansys_connector/workflows/`: declarative plans and future workflow templates
+현재 가장 성숙한 adapter는 Fluent입니다. Workbench와 Mechanical은 더 작은
+실험적 기능 표면으로 제공됩니다.
 
-Compatibility shims remain in the old module paths under `src/ansys_connector/` and `src/ansys_connector/adapters/`, so existing imports and console entrypoints continue to work.
+## 프로젝트 구조
 
-## What is set up
+- `src/ansys_connector/core/`: 환경 감지, action policy, 관리형 세션, 실행 로직
+- `src/ansys_connector/interfaces/`: CLI와 MCP 진입점
+- `src/ansys_connector/products/`: 제품 adapter와 live session wrapper
+- `src/ansys_connector/workflows/`: 선언형 plan과 고수준 workflow template
+- `examples/`: 제품 action plan과 Fluent workflow spec
+- `scripts/diagnostics/`: 로컬 환경 점검 및 smoke test helper
 
-- A local virtual environment at `.\.venv`
-- PyAnsys client packages for Fluent, Mechanical, and Workbench
-- A Python package under `src\ansys_connector`
-- Product examples under `examples\products\`
-- Diagnostics under `scripts\diagnostics\`
+기존 import와 console entrypoint가 계속 동작하도록
+`src/ansys_connector/`와 `src/ansys_connector/adapters/` 아래의 예전 경로에는
+호환 shim이 남아 있습니다.
 
-## Quick start
+## 설치
 
-Activate the virtual environment in PowerShell:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-Install the local package in editable mode:
+Python 3.12 이상 환경을 만들고 활성화한 뒤, 패키지를 editable mode로
+설치합니다.
 
 ```powershell
 python -m pip install -e .
 ```
 
-Inspect the detected environment:
+`requirements.txt` 기반으로 설치하려면 다음을 실행합니다.
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+이 프로젝트는 자동화하려는 제품에 맞는 PyAnsys 패키지와, `AWP_ROOT261`처럼
+`AWP_ROOT...` 환경 변수를 노출하는 로컬 Ansys 설치를 전제로 합니다.
+
+## 빠른 시작
+
+로컬 환경과 사용 가능한 adapter를 확인합니다.
 
 ```powershell
 ansysctl env
 ansysctl adapters
 ```
 
-Discover the official Fluent workflow templates:
-
-```powershell
-ansysctl list-workflows fluent
-ansysctl describe-workflow fluent.steady_run
-ansysctl describe-workflow fluent.reflow_melting
-```
-
-Start a Fluent workflow run from an existing case or mesh:
-
-```powershell
-ansysctl start-workflow fluent.steady_run --spec .\examples\workflows\fluent\steady_run.yaml --workspace .\runs\steady-demo
-ansysctl start-workflow fluent.reflow_melting --spec .\examples\workflows\fluent\reflow_melting.yaml --workspace .\runs\reflow-demo
-ansysctl get-workflow-run <run_id>
-ansysctl cancel-workflow-run <run_id>
-```
-
-Call adapters directly:
+안전한 adapter action을 호출합니다.
 
 ```powershell
 ansysctl call fluent version
 ansysctl call workbench version
 ansysctl call fluent describe --param path=setup.general
-ansysctl call fluent scheme --profile expert --option allow_raw_actions=true --param mode=string_eval --param command="(cx-version)"
-ansysctl call fluent start_transcript --param file_name="outputs/fluent.txt"
-ansysctl call fluent version --workspace .\runs\fluent-session-01
 ```
 
-Run the low-level product example plans only when you want manual action sequencing:
+기존 case 또는 mesh에서 Fluent workflow를 시작합니다.
+
+```powershell
+ansysctl list-workflows fluent
+ansysctl describe-workflow fluent.steady_run
+ansysctl start-workflow fluent.steady_run --spec .\examples\workflows\fluent\steady_run.yaml --workspace .\runs\steady-demo
+ansysctl get-workflow-run <run_id>
+```
+
+수동 action sequencing이 필요할 때만 저수준 action plan을 실행합니다.
 
 ```powershell
 ansysctl run-plan .\examples\products\fluent\version.yaml
-ansysctl run-plan .\examples\products\fluent\version_and_scheme.yaml
 ansysctl run-plan .\examples\products\workbench\version.yaml
 ```
 
-## Profiles and action policy
+## Adapter 성숙도
 
-The bridge has two execution profiles:
+| Adapter | 성숙도 | Safe actions | Expert actions |
+| --- | --- | --- | --- |
+| Fluent | beta | solver, file, report, export, workflow 중심의 넓은 typed surface | `scheme`, `tui`, `command` |
+| Workbench | experimental | `version` | `script` |
+| Mechanical | experimental | `version` | `python` |
 
-- `safe`: default. Only typed actions are allowed and safe file actions are restricted to the workspace plus `outputs\` unless extra roots are provided.
-- `expert`: opt-in. Unlocks expert actions, but raw script, Scheme, TUI, and callable-path execution still require `allow_raw_actions=true`.
+현재 설치 환경에서 노출되는 정확한 action 목록은 `ansysctl adapters`로 확인합니다.
 
-Examples:
+## 안전 모델
+
+브리지는 두 가지 실행 profile을 사용합니다.
+
+- `safe`: 기본값입니다. typed action만 허용합니다. 안전한 file action은 세션
+  workspace와 `outputs/`, 그리고 명시적으로 전달한 `--allowed-root` 값
+  안으로 제한됩니다.
+- `expert`: opt-in profile입니다. expert action을 열지만, raw script, Scheme,
+  TUI, callable-path 실행은 여전히 `allow_raw_actions=true`가 필요합니다.
+
+예시:
 
 ```powershell
 ansysctl call fluent scheme --param mode=string_eval --param command="(cx-version)"
@@ -92,97 +102,51 @@ ansysctl call fluent write_case --param file_name="outputs\case.cas.h5"
 ansysctl call fluent write_case --allowed-root "D:\ExternalCases" --param file_name="D:\ExternalCases\case.cas.h5"
 ```
 
-The first `scheme` call fails fast because it tries an expert-only action in the safe profile.
-Even in expert mode, raw actions require the explicit session option `allow_raw_actions=true`.
+첫 번째 `scheme` 호출은 safe profile에서 expert-only action을 요청하므로 즉시
+실패합니다. Raw expert action은 기본적으로 broker state directory의
+`raw-actions.jsonl`에도 기록됩니다.
 
-## Adapter actions
+## Fluent Workflow
 
-The Fluent adapter exposes typed safe actions plus raw expert actions:
+Fluent는 공식 고수준 workflow template이 가장 먼저 제공된 제품입니다.
+Workflow run은 자체 Fluent 세션을 소유하고, run metadata를 파일로 저장하며,
+비동기 polling과 cooperative cancellation을 지원합니다.
 
-- Safe: `version`, `describe`, `get_state`, `set_state`, `read_case`, `read_case_data`, `read_mesh`, `write_case`, `write_case_data`, `write_data`, `start_transcript`, `stop_transcript`, `hybrid_initialize`, `iterate`, `initialize_solution`, `run_iterations`, `run_time_steps`, `collect_reports`, `export_results`, `checkpoint_case_data`, `get_solver_health`
-- Expert: `scheme`, `tui`, `command`
-
-Use Python-style settings paths such as `setup.general`, `solution.initialization`, or `file.start_transcript`.
-`fluent command` now accepts only explicit `path`, `args`, and `kwargs`; implicit top-level kwargs are rejected.
-
-Workbench and Mechanical intentionally keep a smaller safe surface in this milestone:
-
-- Workbench safe: `version`
-- Workbench expert: `script`
-- Mechanical safe: `version`
-- Mechanical expert: `python`
-
-Current adapter maturity:
-
-- Fluent: `beta`
-- Workbench: `experimental`
-- Mechanical: `experimental`
-
-## Fluent workflow templates
-
-Fluent is the first product with an official high-level workflow surface.
-These workflow runs are the preferred API for real solves because they own their own Fluent session,
-write file-backed run metadata, and support asynchronous polling plus cooperative cancellation.
-
-Supported workflows:
+지원 workflow:
 
 - `fluent.steady_run`
-  - Start from an existing `mesh`, `case`, or `case_data`
-  - Apply curated setup changes
-  - Initialize the solver
-  - Run chunked steady iterations
-  - Collect reports, export images, and write final case-data
+  - `mesh`, `case`, `case_data`에서 시작
+  - curated setup change 적용
+  - solver 초기화
+  - chunk 단위 steady iteration 실행
+  - report 수집, image export, final case-data 작성
 - `fluent.reflow_melting`
-  - Start from an existing `mesh` or `case`
-  - Apply multiphase, VOF, wall adhesion, and melting-related state changes
-  - Run chunked transient time steps with optional checkpoints
-  - Collect reports, export images, and write final case-data
+  - `mesh` 또는 `case`에서 시작
+  - multiphase, VOF, wall adhesion, melting 관련 state change 적용
+  - optional checkpoint와 함께 chunk 단위 transient time step 실행
+  - report 수집, image export, final case-data 작성
 
-Workflow runs always open their own Fluent session and close it on success, failure, or cancellation.
-They do not reuse `open_session` persistent sessions.
-Cancellation is cooperative and only takes effect at iteration/time-step chunk boundaries.
-
-Each workflow spec is strict and uses a typed structure instead of raw Scheme or TUI:
+Workflow spec은 raw Scheme이나 TUI 대신 typed section을 사용하는 엄격한
+구조입니다.
 
 - `source`
-- `setup` or `physics`/`zones`
+- `setup` 또는 `physics`/`zones`
 - `solve`
 - `outputs`
 
-The `setup`, `physics`, and `zones` blocks are lists of `{path, state}` changes grouped by section.
-See the example specs under `examples\workflows\fluent\`.
-
-These examples are intentionally workflow-first:
+예시:
 
 - [steady_run.yaml](examples/workflows/fluent/steady_run.yaml)
 - [reflow_melting.yaml](examples/workflows/fluent/reflow_melting.yaml)
 
-Fluent workflow v1 does not include:
+Workflow v1에는 geometry import, meshing, Workbench handoff, Mechanical
+handoff, chemistry, flux, IMC growth modeling, hard mid-call interrupt가
+포함되어 있지 않습니다.
 
-- geometry import or meshing
-- Workbench handoff
-- chemistry, flux, or IMC growth modeling
-- Mechanical handoff after reflow
-- hard mid-call interrupts
+## Plan
 
-Those are deferred to later milestones.
-
-## CLI structure
-
-- `ansysctl env`: report Python and local Ansys installation details
-- `ansysctl adapters`: list which adapters are currently usable, their maturity, and which actions are safe vs expert
-- `ansysctl call <adapter> <action>`: run one action with optional `--profile`, `--workspace`, `--allowed-root`, `--option`, and `--param`
-- `ansysctl list-workflows [product]`: list high-level workflow templates
-- `ansysctl describe-workflow <name>`: inspect one workflow template
-- `ansysctl start-workflow <name> --spec <path>`: start an asynchronous workflow-owned run
-- `ansysctl get-workflow-run <run_id>`: inspect workflow progress, recent events, outputs, and summary
-- `ansysctl cancel-workflow-run <run_id>`: request cooperative cancellation for a workflow run
-- `ansysctl run-plan <file>`: execute a low-level YAML or JSON action plan
-
-`ansysctl call` and `ansysctl run-plan` now emit YAML by default for readable terminal output.
-Add `--json` when another tool needs machine-readable output.
-
-Plan session config supports `adapter`, `profile`, `workspace`, `allowed_roots`, and `options`:
+선언형 plan은 하나 이상의 named session을 유지하면서 여러 step을 실행할 수
+있습니다.
 
 ```yaml
 sessions:
@@ -196,55 +160,37 @@ sessions:
       allow_raw_actions: true
       processor_count: 2
       ui_mode: no_gui
-```
-
-Step objects are strict and only accept:
-
-- `session`
-- `action`
-- `params`
-- `label`
-- `continue_on_error`
-
-Legacy `adapters` and step-level `adapter` keys are still accepted for backward compatibility, but new plans should prefer `sessions` and `session`.
-Session launch options must now live under `options`; hidden top-level option fallback is rejected.
-
-Step params can also reference prior step results or session metadata:
-
-```yaml
 steps:
   - session: fluent_main
     action: start_transcript
     label: transcript_start
     params:
       file_name: ${sessions.fluent_main.workspace}/outputs/session.log
-
-  - session: fluent_main
-    action: set_state
-    params:
-      path: file.start_transcript
-      state:
-        file_name: ${steps.transcript_start.data.params.file_name}
 ```
 
-References support:
+Step object는 `session`, `action`, `params`, `label`,
+`continue_on_error`만 허용합니다. Label은 reference key로 쓰이므로 plan 안에서
+고유해야 하며 `.`을 포함할 수 없습니다.
+
+지원 reference:
 
 - `${sessions.<handle>.workspace}`
 - `${sessions.<handle>.adapter}`
 - `${steps.<label>.data...}`
-- `${steps.<label>.ok}` / `${steps.<label>.error}`
+- `${steps.<label>.ok}` 및 `${steps.<label>.error}`
 
-Step labels are now treated as reference keys, so they must be unique within a plan and may not contain `.`.
+이전 호환성을 위해 legacy `adapters`와 step-level `adapter` key도 아직
+허용하지만, 새 plan은 `sessions`와 `session`을 사용하는 편이 좋습니다.
 
-## MCP server
+## MCP 서버
 
-Start the MCP server over stdio:
+MCP 서버를 stdio로 시작합니다.
 
 ```powershell
-.\.venv\Scripts\ansysctl-mcp.exe
+ansysctl-mcp
 ```
 
-The MCP server exposes persistent session tools:
+MCP 서버는 다음 tool을 제공합니다.
 
 - `environment`
 - `adapters`
@@ -263,68 +209,25 @@ The MCP server exposes persistent session tools:
 - `get_workflow_run`
 - `cancel_workflow_run`
 
-Managed session metadata includes:
+관리형 session metadata는 파일 기반으로 저장되므로 프로세스 재시작 후에도
+`orphaned` 상태로 다시 발견할 수 있습니다. 기본 broker state 경로는 Windows의
+`%LOCALAPPDATA%\AnsysConnector\broker`, 그 외 환경의
+`~/.ansys_connector/broker`입니다. `ANSYS_CONNECTOR_STATE_DIR`로 경로를
+override할 수 있습니다.
 
-- `profile`
-- `workspace`
-- `allowed_roots`
-- `status`
-- `live_session`
-- `can_execute`
-- `created_at`
-- `last_used_at`
-- `expires_at`
+Workflow metadata도 같은 broker state directory의 `workflow-runs/` 아래에
+저장됩니다. 각 run은 `run.json`, `spec.yaml`, `program.json`,
+`events.jsonl`, `worker.log`를 저장합니다.
 
-Broker state is persisted locally so managed sessions can be rediscovered as `orphaned` after a process restart.
-By default the broker stores metadata under `%LOCALAPPDATA%\AnsysConnector\broker` on Windows
-or `~/.ansys_connector/broker` elsewhere. Set `ANSYS_CONNECTOR_STATE_DIR` to override it.
-Raw expert actions are also appended to `raw-actions.jsonl` in that broker state directory by default.
-Remote sessions owned by another live process are preserved in broker metadata and still count toward session limits,
-but they cannot be closed from a different process until adapter-specific reattach support exists.
+## 진단
 
-Workflow run metadata is also file-backed under `workflow-runs\` in that broker state directory.
-Each run stores:
-
-- `run.json`
-- `spec.yaml`
-- `program.json`
-- `events.jsonl`
-- `worker.log`
-
-The output directory for a workflow run defaults to `${workspace}\outputs\workflow-runs\<run_id>\`.
-
-Recommended agent flow for Fluent:
-
-1. `describe_actions(adapter="fluent", profile="safe")`
-2. `open_session(adapter="fluent", profile="safe")`
-3. `get_session(session_id=...)`
-4. `execute_session(..., action="describe", params={"path":"setup.general"})`
-5. `execute_session(..., action="set_state" | "start_transcript" | "iterate", ...)`
-6. `close_session(...)`
-
-Raw control requires an explicit expert session:
-
-1. `open_session(adapter="fluent", profile="expert", options={"allow_raw_actions": true})`
-2. `execute_session(..., action="scheme" | "tui" | "command", ...)`
-3. `close_session(...)`
-
-Recommended agent flow for official Fluent workflows:
-
-1. `list_workflows(product="fluent")`
-2. `describe_workflow(name="fluent.steady_run" | "fluent.reflow_melting")`
-3. `start_workflow(...)`
-4. `get_workflow_run(run_id=...)`
-5. `cancel_workflow_run(run_id=...)` when needed
-
-## Diagnostics
-
-Run the environment check:
+환경 점검을 실행합니다.
 
 ```powershell
 python .\scripts\diagnostics\ansys_env_check.py
 ```
 
-Run individual smoke tests:
+제품별 smoke test를 실행합니다.
 
 ```powershell
 python .\scripts\diagnostics\fluent_smoke_test.py
@@ -332,30 +235,5 @@ python .\scripts\diagnostics\workbench_smoke_test.py
 python .\scripts\diagnostics\mechanical_smoke_test.py
 ```
 
-## Current status on this machine
-
-- `ansys_env_check.py`: passed
-- `fluent_smoke_test.py`: passed against Ansys Fluent 2026 R1
-- `workbench_smoke_test.py`: passed against Workbench server version 261
-- `ansysctl call fluent version`: verified
-- `ansysctl list-workflows fluent`: verified
-- `ansysctl describe-workflow fluent.steady_run`: verified
-- `ansysctl call fluent scheme` in safe mode: verified to fail fast before launch
-- `ansysctl call fluent scheme --profile expert --option allow_raw_actions=true`: verified
-- `ansysctl call workbench version`: verified
-- MCP-style persistent Workbench `open_session` / `get_session` / `close_session`: verified
-- `python -m unittest discover -s tests -v`: currently passing
-- official workflow metadata and worker lifecycle: covered by unit and interface tests
-- `mechanical_smoke_test.py`: launch attempt starts licensing, but the local gRPC port does not come up yet
-
-## Notes
-
-- These tools assume the local Ansys Student installation exposes `AWP_ROOT261`.
-- Fluent is the strongest first target because PyFluent supports both high-level settings and raw TUI/Scheme execution.
-- `ansysctl adapters` reports maturity so external agents can treat Workbench and Mechanical as more experimental surfaces.
-- Declarative plans now support named session handles, so one workflow can keep multiple sessions for the same product alive.
-- Fluent launch is serialized with both in-process and broker file locks so separate `ansysctl` processes coordinate on startup.
-- Official Fluent workflows run only in the safe profile and do not require raw-action opt-in.
-- Reflow workflow v1 targets solver-side VOF/melting reproduction only; chemistry and Mechanical handoff remain v2 work.
-- Mechanical support is wired into the CLI, but local launch still needs extra investigation on this machine.
-- Mechanical local launch defaults to a single attempt because partially started launches can consume the Student demo seat.
+이 컴퓨터에 특화된 검증 기록은 공개 README에 섞지 않습니다. 현재 working copy의
+최신 로컬 상태는 [LOCAL_STATUS.md](LOCAL_STATUS.md)를 확인하세요.
